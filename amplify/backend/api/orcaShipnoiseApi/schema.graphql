@@ -1,0 +1,5 @@
+type Note @model {
+  id: ID!
+  name: String!
+  description: String
+}
