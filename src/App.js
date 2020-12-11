@@ -5,6 +5,7 @@ var React = require('react');
 var Component = React.Component;
 var CanvasJS = CanvasJSReact.CanvasJS;
 var CanvasJSStockChart = CanvasJSReact.CanvasJSStockChart;
+
  
 export default class App extends Component {
   render() {
@@ -46,7 +47,7 @@ export default class App extends Component {
       navigator: {
         slider: {
           minimum: new Date("2018-01-01"),
-          maximum: new Date("2019-01-02")
+          maximum: new Date("2018-01-02")
         }
       }
     };
@@ -57,6 +58,11 @@ export default class App extends Component {
     };
     return (
       <div>
+      <h1>ShipNoise.net</h1>
+      <h3>Characterizing ship noise in orca habitats</h3>
+      
+      <p>Ship noise dominates the acoustic habitat of the Southern Resident Orca Whales within the Salish Sea.</p>
+      <p>What did the orca whales hear today in Puget Sound?</p>
         <CanvasJSStockChart
           options={options}
           containerProps = {containerProps}
