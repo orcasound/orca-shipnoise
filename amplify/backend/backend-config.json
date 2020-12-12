@@ -1,12 +1,5 @@
 {
-  "auth": {
-    "orcashipnoise": {
-      "service": "Cognito",
-      "providerPlugin": "awscloudformation",
-      "dependsOn": [],
-      "customAuth": false
-    }
-  },
+  "auth": {},
   "api": {
     "orcaShipnoiseApi": {
       "service": "AppSync",
