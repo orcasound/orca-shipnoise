@@ -23,7 +23,7 @@ Here is a sample workflow for contributing:
 <br/>`? Start Command:`**npm run-script start**
 <br/>`? Do you plan on modifying this backend?` **No** 
 
-Note: For the last option, if you are planning on making any changes to the backend (eg. model changes or API changes), you can select "Yes" instead.
+Note: For the last option, if you are planning on making any changes to the backend (eg. model changes or API changes), you can select "Yes" instead. You can use `amplify push` to push your backend changes to the `dev` environment.
 
 3. Make your changes locally, run `yarn && yarn start` and open [http://localhost:3000](http://localhost:3000) to 
 view your changes in the browser
