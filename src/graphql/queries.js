@@ -1,28 +1,65 @@
 /* eslint-disable */
 // this is an auto generated file. This will be overwritten
 
-export const getNote = /* GraphQL */ `
-  query GetNote($id: ID!) {
-    getNote(id: $id) {
+export const getShipnoise = /* GraphQL */ `
+  query GetShipnoise($id: ID!) {
+    getShipnoise(id: $id) {
       id
-      name
-      description
+      type
+      date
+      noiseDelta
+      shipName
+      shipMMSI
       createdAt
       updatedAt
     }
   }
 `;
-export const listNotes = /* GraphQL */ `
-  query ListNotes(
-    $filter: ModelNoteFilterInput
+export const listShipnoises = /* GraphQL */ `
+  query ListShipnoises(
+    $filter: ModelShipnoiseFilterInput
     $limit: Int
     $nextToken: String
   ) {
-    listNotes(filter: $filter, limit: $limit, nextToken: $nextToken) {
+    listShipnoises(filter: $filter, limit: $limit, nextToken: $nextToken) {
       items {
         id
-        name
-        description
+        type
+        date
+        noiseDelta
+        shipName
+        shipMMSI
+        createdAt
+        updatedAt
+      }
+      nextToken
+    }
+  }
+`;
+export const listShipnoiseByDate = /* GraphQL */ `
+  query ListShipnoiseByDate(
+    $type: String
+    $date: ModelStringKeyConditionInput
+    $sortDirection: ModelSortDirection
+    $filter: ModelShipnoiseFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listShipnoiseByDate(
+      type: $type
+      date: $date
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        type
+        date
+        noiseDelta
+        shipName
+        shipMMSI
         createdAt
         updatedAt
       }

@@ -1,5 +1,13 @@
-type Note @model {
+type Shipnoise @model 
+@key(name: "ByDate",
+fields: ["type", "date"],
+queryField: "listShipnoiseByDate") {
   id: ID!
-  name: String!
-  description: String
+  type: String!
+  date: String!
+  noiseDelta: Int!
+  shipName: String
+  shipMMSI: String
+  createdAt: String
+  updatedAt: String
 }

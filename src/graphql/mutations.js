@@ -1,43 +1,52 @@
 /* eslint-disable */
 // this is an auto generated file. This will be overwritten
 
-export const createNote = /* GraphQL */ `
-  mutation CreateNote(
-    $input: CreateNoteInput!
-    $condition: ModelNoteConditionInput
+export const createShipnoise = /* GraphQL */ `
+  mutation CreateShipnoise(
+    $input: CreateShipnoiseInput!
+    $condition: ModelShipnoiseConditionInput
   ) {
-    createNote(input: $input, condition: $condition) {
+    createShipnoise(input: $input, condition: $condition) {
       id
-      name
-      description
+      type
+      date
+      noiseDelta
+      shipName
+      shipMMSI
       createdAt
       updatedAt
     }
   }
 `;
-export const updateNote = /* GraphQL */ `
-  mutation UpdateNote(
-    $input: UpdateNoteInput!
-    $condition: ModelNoteConditionInput
+export const updateShipnoise = /* GraphQL */ `
+  mutation UpdateShipnoise(
+    $input: UpdateShipnoiseInput!
+    $condition: ModelShipnoiseConditionInput
   ) {
-    updateNote(input: $input, condition: $condition) {
+    updateShipnoise(input: $input, condition: $condition) {
       id
-      name
-      description
+      type
+      date
+      noiseDelta
+      shipName
+      shipMMSI
       createdAt
       updatedAt
     }
   }
 `;
-export const deleteNote = /* GraphQL */ `
-  mutation DeleteNote(
-    $input: DeleteNoteInput!
-    $condition: ModelNoteConditionInput
+export const deleteShipnoise = /* GraphQL */ `
+  mutation DeleteShipnoise(
+    $input: DeleteShipnoiseInput!
+    $condition: ModelShipnoiseConditionInput
   ) {
-    deleteNote(input: $input, condition: $condition) {
+    deleteShipnoise(input: $input, condition: $condition) {
       id
-      name
-      description
+      type
+      date
+      noiseDelta
+      shipName
+      shipMMSI
       createdAt
       updatedAt
     }
