@@ -6,14 +6,28 @@ Welcome to the Orcasound ShipNoise site! We're thrilled you're interested in con
 
 Here is a sample workflow for contributing:
 
-1. Fork this repo
-2. Make your changes locally, run `yarn start` and open [http://localhost:3000](http://localhost:3000) to 
+1. Fork this repo and clone it locally to make local changes
+2. Pull the backend by installing the [Amplify CLI](https://docs.amplify.aws/cli). Run `amplify pull` and select the following options:
+
+`? Do you want to use an AWS profile?` **Yes** (Note: You may need to set up an [AWS Profile](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html))
+<br/>`? Please choose the profile you want to use` **default**
+<br/>`? Which app are you working on?` **d27wklsx9a9q36**
+<br/>`? Pick a backend environment:` **dev**
+<br/>`? Choose your default editor:` **Visual Studio Code**
+<br/>`? Choose the type of app that you're building` **javascript**
+<br/>Please tell us about your project
+<br/>` What javascript framework are you using` **react**
+<br/>`? Source Directory Path:`  **src**
+<br/>`? Distribution Directory Path:` **build**
+<br/>`? Build Command:`  **npm run-script build**
+<br/>`? Start Command:`**npm run-script start**
+<br/>`? Do you plan on modifying this backend?` **No** 
+
+Note: For the last option, if you are planning on making any changes to the backend (eg. model changes or API changes), you can select "Yes" instead.
+
+3. Make your changes locally, run `yarn && yarn start` and open [http://localhost:3000](http://localhost:3000) to 
 view your changes in the browser
-3. To make changes to the backend code (such as the GraphQL schemas), you'll need to install the [Amplify CLI](https://docs.amplify.aws/cli) and make changes against the `dev` backend environment:
-`amplify pull --appId d27wklsx9a9q36 --envName dev`
-4. Submit a PR to the `dev` branch of this repo. Once it is merged, a test version of the site will 
-be deployed to https://dev.d27wklsx9a9q36.amplifyapp.com/. If the changes look good, we can merge it 
-into the main branch for deployment to the live ShipNoise.Net site
+4. Submit a PR to the `dev` branch of this repo. Once it is merged, a test version of the site will be deployed to https://dev.d27wklsx9a9q36.amplifyapp.com/. If the changes look good, we can merge it into the main branch for deployment to the live ShipNoise.Net site
 
 ## Questions?
 
