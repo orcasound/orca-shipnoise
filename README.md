@@ -28,6 +28,12 @@ Note: At this stage of development, the ShipNoise data processing is still not c
 a skeleton full-stack application with dummy data to provide a proof-of-concept for future development.
 In the future we will be pushing the real hydrophone and AIS data to DynamoDB for retrieval by the site.
 
+### Schematics from the Dec 2020 Amazon hackathon
+
+<img width="803" alt="image2" src="https://user-images.githubusercontent.com/14044595/132772184-fac60f29-72ce-482d-bdde-339af0093146.png">
+
+<img width="979" alt="Screen Shot 2020-12-11 at 9 17 18 AM" src="https://user-images.githubusercontent.com/14044595/132772176-6fbdfe08-2ed1-4f7a-a263-e372d159754f.png">
+
 ## Running the code locally
 
 In the project directory, you can run:
@@ -39,3 +45,4 @@ Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
 
 The page will reload if you make edits.\
 You will also see any lint errors in the console.
+
