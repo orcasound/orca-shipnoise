@@ -1,0 +1,13 @@
+type Shipnoise @model 
+@key(name: "ByDate",
+fields: ["type", "date"],
+queryField: "listShipnoiseByDate") {
+  id: ID!
+  type: String!
+  date: String!
+  noiseDelta: Int!
+  shipName: String
+  shipMMSI: String
+  createdAt: String
+  updatedAt: String
+}
