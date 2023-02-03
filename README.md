@@ -8,7 +8,9 @@ The open source prototype designed and built during the Dec 2020 Amazon hackatho
 
 - As of early 2021, the [shipnoise.net](https://shipnoise.net) domain name is reserved and a proof-of-concept has been deployed via AWS:
 <img width="933" alt="Screenshot 2023-02-02 at 6 20 58 PM" src="https://user-images.githubusercontent.com/14044595/216497182-ed8cb92c-693d-48a2-a462-2710b38186a1.png">
+
 - During 2021-2022 a volunteer UX research team initated a series of interviews with stakeholders in the Puget Sound region.
+
 - In 2023, a UW Masters in Data Science team mentored by Valentina Staneva advanced the open source code used to compute noise metrics from Orcasound's open audio data archives.
 
 ## Contributing
