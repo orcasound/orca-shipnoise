@@ -36,7 +36,7 @@ Here is a basic description of the architecture:
 - Noise metric computation from Orcasound audio data
    - hackathon analyis code is in the [orca-noise-analysis](https://github.com/orcasound/orca-noise-analysis) repo
    - some 2022 code that computes band levels from raw audio lives within [Val's autoencoder repo](https://github.com/orcasound/orca-autoencoder/tree/main/WAV_to_PSD_Spectrogram)
-   - related efforts in 2023 include the [UW MS Data Science repo](https://github.com/orcasound/ambient-sound-analysis) the [bioacoustics dashboard repo](https://github.com/orcasound/bioacoustic-dashboard)
+   - related efforts in 2023 include the [UW MS Data Science repo](https://github.com/orcasound/ambient-sound-analysis) and the [bioacoustics dashboard repo](https://github.com/orcasound/bioacoustic-dashboard)
 
 Note: At this stage of development, the shipnoise data processing is still not connected to DynamoDB. As of this writing, this app is mostly just a skeleton full-stack application with dummy data to provide a proof-of-concept for future development. In the future we will be pushing the real hydrophone and AIS data to DynamoDB for retrieval by the site.
 
