@@ -32,14 +32,16 @@ Connects to the [AISstream.io](https://aisstream.io/) WebSocket API and saves al
 Files are saved under:
 /home/ubuntu/aisstream/data/YYYYMMDD/ais_raw_YYYYMMDDTHHMMSSZ.jsonl
 
-Field	Meaning
-MMSI	Vessel ID
-ShipName	Ship name
-Latitude, Longitude	Vessel position
-Sog	Speed over ground (knots)
-Cog	Course over ground (°)
-TrueHeading	Vessel heading (°)
-time_utc	UTC timestamp
+| Field                   | Meaning                   |
+| ----------------------- | ------------------------- |
+| `MMSI`                  | Vessel ID                 |
+| `ShipName`              | Ship name                 |
+| `Latitude`, `Longitude` | Vessel position           |
+| `Sog`                   | Speed over ground (knots) |
+| `Cog`                   | Course over ground (°)    |
+| `TrueHeading`           | Vessel heading (°)        |
+| `time_utc`              | UTC timestamp             |
+
 
 ## ② ais_to_transits.py — Identify Ship Transits
 
@@ -92,7 +94,9 @@ Clip index file: the latest *_clips_index.csv or audio_clips_index.csv — lists
 
 Each clip file contains:
 
-clip_id	clip_start_utc	clip_end_utc
+| clip_id | clip_start_utc | clip_end_utc |
+| ------- | -------------- | ------------ |
+
 Logic
 
 For each audio clip:
@@ -106,11 +110,22 @@ Select the top-overlapping ship as top1_*.
 Output
 *_transits_annotated.csv
 
-clip_start_utc	clip_end_utc	overlap_count	top1_mmsi	top1_shipname	top1_cpa_dist_m
-2025-10-02T07:45Z	2025-10-02T08:00Z	1	366945000	NAT GEO QUEST	1843.5
-Column	Description
-clip_start_utc, clip_end_utc	Start / end of the audio clip
-overlap_count	Number of transits overlapping this clip
-top1_mmsi, top1_shipname	Most likely vessel producing sound
-top1_cpa_dist_m	Ship–hydrophone distance at CPA
+| clip_start_utc    | clip_end_utc      | overlap_count | top1_mmsi | top1_shipname | top1_cpa_dist_m |
+| ----------------- | ----------------- | ------------- | --------- | ------------- | --------------- |
+| 2025-10-02T07:45Z | 2025-10-02T08:00Z | 1             | 366945000 | NAT GEO QUEST | 1843.5          |
+
+| Column                           | Description                              |
+| -------------------------------- | ---------------------------------------- |
+| `clip_start_utc`, `clip_end_utc` | Start / end of the audio clip            |
+| `overlap_count`                  | Number of transits overlapping this clip |
+| `top1_mmsi`, `top1_shipname`     | Most likely vessel producing sound       |
+| `top1_cpa_dist_m`                | Ship–hydrophone distance at CPA          |
+
+Script Outputs Summary
+
+| Step  | Script                       | Description                                                                                     | Output Format                    | Example Filename                                  |
+| ----- | ---------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------- |
+| **①** | `ais_collect.py`             | Collects raw AIS messages (vessels within ~30 km of hydrophone) every 30 minutes                | **`.jsonl`** (one JSON per line) | `ais_raw_20251010T083000Z.jsonl`                  |
+| **②** | `ais_to_transits.py`         | Processes raw AIS data to identify ship transits within 25 km radius (entry / exit / CPA times) | **`.csv`**                       | `ais_raw_20251010T083000Z_transits.csv`           |
+| **③** | `match_transits_to_clips.py` | Matches each hydrophone audio clip with overlapping ship transits (temporal alignment)          | **`.csv`**                       | `ais_raw_20251010T083000Z_transits_annotated.csv` |
 
