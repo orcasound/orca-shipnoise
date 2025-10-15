@@ -5,7 +5,7 @@ The goal is to connect **vessel movement** (AIS) with **acoustic recordings** to
 
 ---
 
-## ⚙️ Overview
+## Overview
 
 | Stage | Script | Description |
 |--------|---------|-------------|
@@ -28,9 +28,13 @@ Connects to the [AISstream.io](https://aisstream.io/) WebSocket API and saves al
 | `DURATION_SECS` | Duration of each capture (e.g. 3600 = 1 h) |
 | `AISSTREAM_API_KEY` | Stored securely as an environment variable (`export AISSTREAM_API_KEY="..."`) |
 
-### Output
+### Output Example
+
+`ais_raw_*.jsonl` — raw AIS messages collected every 30 minutes.  
+
 Files are saved under:
-/home/ubuntu/aisstream/data/YYYYMMDD/ais_raw_YYYYMMDDTHHMMSSZ.jsonl
+`/home/ubuntu/aisstream/data/YYYYMMDD/ais_raw_YYYYMMDDTHHMMSSZ.jsonl`
+
 
 | Field                   | Meaning                   |
 | ----------------------- | ------------------------- |
@@ -43,30 +47,25 @@ Files are saved under:
 | `time_utc`              | UTC timestamp             |
 
 
-## ② ais_to_transits.py — Identify Ship Transits
+## ② `ais_to_transits.py` — Identify Ship Transits
 
 Processes raw .jsonl files to find when each vessel passes near the hydrophone (within 25 km).
 
-Workflow
+### Workflow
 
-Reads ais_raw_*.jsonl files.
+1. Reads `ais_raw_*.jsonl` files.  
+2. Computes Haversine distance for each message.  
+3. Groups by vessel `mmsi`.  
+4. Determines:
+   - **Entry** (`t_entry`)
+   - **Closest Point of Approach (CPA)** (`t_cpa`)
+   - **Exit** (`t_exit`)
+5. Outputs one row per ship transit.
 
-Computes Haversine distance for each message.
 
-Groups by vessel mmsi.
+### Output Example
+`*_transits.csv` — contains one row per ship transit.
 
-Determines:
-
-Entry (t_entry)
-
-**Closest Point of Approach (CPA)** (t_cpa`)
-
-Exit (t_exit)
-
-Outputs one row per ship transit.
-
-Output Example
-*_transits.csv
 
 | mmsi      | shipname      | t_entry           | t_cpa             | t_exit            | transit_duration_min | cpa_distance_m | sog_at_cpa | cog_at_cpa | heading_at_cpa |
 | --------- | ------------- | ----------------- | ----------------- | ----------------- | -------------------- | -------------- | ---------- | ---------- | -------------- |
@@ -84,33 +83,45 @@ Output Example
 | `cog_at_cpa`, `heading_at_cpa` | Vessel direction angles             |
 | `transit_duration_min`         | Minutes inside 25 km radius         |
 
-## ③ match_transits_to_clips.py — Match Ships to Audio Clips
+## ③ `match_transits_to_clips.py` — Match Ships to Audio Clips
 
 This final script links the transit events to hydrophone audio clips based on time overlap.
 
-Inputs
+### Inputs
 
-Transit file: the latest *_transits.csv (automatically detected) — contains ship movements and timestamps.
+`*_transits.csv` — contains ship movement data and timestamps (entry, CPA, exit).  
+Automatically detected as the latest available file.
 
-Clip index file: the latest *_clips_index.csv or audio_clips_index.csv — lists audio clip start and end times.
+`*_clips_index.csv` or `audio_clips_index.csv` — lists hydrophone audio clips with start and end UTC times.  
+Used to align each clip with overlapping ship transits.
+
 
 Each clip file contains:
 
 | clip_id | clip_start_utc | clip_end_utc |
 | ------- | -------------- | ------------ |
 
-Logic
+### Logic
 
 For each audio clip:
 
-Find all transits overlapping the clip time window.
+1. Find all ship transits whose time window overlaps with the clip  
+   (`t_entry < clip_end_utc` and `t_exit > clip_start_utc`).
 
-Compute overlap duration (overlap_sec).
+2. Compute the overlap duration for each matching transit (`overlap_sec`).
 
-Select the top-overlapping ship as top1_*.
+3. Select the ship with the largest overlap as the **top1** candidate:  
+   - `top1_mmsi` — vessel MMSI  
+   - `top1_shipname` — vessel name  
+   - `top1_cpa_dist_m` — closest point of approach (meters)
 
-Output
-*_transits_annotated.csv
+Currently, only the **top1 overlapping ship** is recorded for each audio clip.  
+All overlapping vessels are detected internally, but storing or analyzing multiple overlaps  
+(e.g., `topN` or all matches) will be explored in future workflow discussions.
+
+
+### Output Example
+`*_transits_annotated.csv`
 
 | clip_start_utc    | clip_end_utc      | overlap_count | top1_mmsi | top1_shipname | top1_cpa_dist_m |
 | ----------------- | ----------------- | ------------- | --------- | ------------- | --------------- |
@@ -123,7 +134,7 @@ Output
 | `top1_mmsi`, `top1_shipname`     | Most likely vessel producing sound       |
 | `top1_cpa_dist_m`                | Ship–hydrophone distance at CPA          |
 
-Script Outputs Summary
+### Script Outputs Summary
 
 | Step  | Script                       | Description                                                                                     | Output Format                    | Example Filename                                  |
 | ----- | ---------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------- |
