@@ -41,7 +41,7 @@ Cog	Course over ground (°)
 TrueHeading	Vessel heading (°)
 time_utc	UTC timestamp
 
-② ais_to_transits.py — Identify Ship Transits
+## ② ais_to_transits.py — Identify Ship Transits
 
 Processes raw .jsonl files to find when each vessel passes near the hydrophone (within 25 km).
 
@@ -80,7 +80,7 @@ mmsi	shipname	t_entry	t_cpa	t_exit	transit_duration_min	cpa_distance_m	sog_at_cp
 | `cog_at_cpa`, `heading_at_cpa` | Vessel direction angles             |
 | `transit_duration_min`         | Minutes inside 25 km radius         |
 
-③ match_transits_to_clips.py — Match Ships to Audio Clips
+## ③ match_transits_to_clips.py — Match Ships to Audio Clips
 
 This final script links the transit events to hydrophone audio clips based on time overlap.
 
