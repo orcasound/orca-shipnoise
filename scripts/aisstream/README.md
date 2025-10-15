@@ -68,8 +68,10 @@ Outputs one row per ship transit.
 Output Example
 *_transits.csv
 
-mmsi	shipname	t_entry	t_cpa	t_exit	transit_duration_min	cpa_distance_m	sog_at_cpa	cog_at_cpa	heading_at_cpa
-366945000	NAT GEO QUEST	2025-10-02T07:30Z	2025-10-02T07:47Z	2025-10-02T08:10Z	40.0	1843.5	7.9	306.7	303
+| mmsi      | shipname      | t_entry           | t_cpa             | t_exit            | transit_duration_min | cpa_distance_m | sog_at_cpa | cog_at_cpa | heading_at_cpa |
+| --------- | ------------- | ----------------- | ----------------- | ----------------- | -------------------- | -------------- | ---------- | ---------- | -------------- |
+| 366945000 | NAT GEO QUEST | 2025-10-02T07:30Z | 2025-10-02T07:47Z | 2025-10-02T08:10Z | 40.0                 | 1843.5         | 7.9        | 306.7      | 303            |
+
 
 | Column                         | Description                         |
 | ------------------------------ | ----------------------------------- |
