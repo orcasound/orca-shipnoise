@@ -8,7 +8,7 @@ if not API_KEY:
     raise SystemExit("Please set AISSTREAM_API_KEY environment variable.")
 
 # === Hydrophone coordinates (example: Port Townsend Marine Science Center) ===
-HYDRO_LAT, HYDRO_LON = 48.1358, -122.7596
+HYDRO_LAT, HYDRO_LON = 48.13, -122.75
 
 # === Bounding box radius (km) ===
 R_KM = 30.0
