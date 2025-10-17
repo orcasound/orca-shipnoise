@@ -10,7 +10,7 @@ import glob
 import pandas as pd
 from datetime import datetime, timezone
 
-HYDRO_LAT, HYDRO_LON = 48.1358, -122.7596  # hydrophone coordinates
+HYDRO_LAT, HYDRO_LON = 48.13, -122.75  # hydrophone coordinates
 RADIUS_M = 25000  # analysis radius (m)
 
 # --- Haversine distance in meters ---
