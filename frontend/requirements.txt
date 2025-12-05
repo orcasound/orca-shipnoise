@@ -1,0 +1,16 @@
+# Node/Next.js project — install via npm using package.json / package-lock.json.
+# Listed here for reference only (npm package@version syntax).
+
+# App dependencies
+next@16.0.2-canary.19
+react@19.2.0
+react-dom@19.2.0
+lucide-react@0.546.0
+
+# Dev dependencies
+typescript@5
+eslint@9
+eslint-config-next@16.0.0
+tailwindcss@4.1.15
+postcss@8.5.6
+autoprefixer@10.4.21
