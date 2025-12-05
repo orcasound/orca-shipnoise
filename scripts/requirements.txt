@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+sqlalchemy
+psycopg2-binary
+pandas
+numpy
+boto3
+botocore
+scipy
+soundfile
