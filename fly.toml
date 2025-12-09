@@ -1,13 +1,13 @@
-# fly.toml app configuration file generated for orca-shipnoise on 2025-12-09T07:38:30Z
+# fly.toml app configuration file generated for orca-shipnoise-fldmha on 2025-12-09T08:17:33Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'orca-shipnoise'
-primary_region = 'iad'
+app = 'orca-shipnoise-fldmha'
+primary_region = 'sjc'
 
 [build]
-  
+
 [http_service]
   internal_port = 8080
   force_https = true
