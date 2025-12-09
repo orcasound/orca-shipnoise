@@ -7,7 +7,6 @@ app = 'orca-shipnoise'
 primary_region = 'iad'
 
 [build]
-  builder = "docker"
   
 [http_service]
   internal_port = 8080
