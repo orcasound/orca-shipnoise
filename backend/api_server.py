@@ -11,7 +11,8 @@ import os
 app = FastAPI()
 
 # --- Load environment variables ---
-DB_URL = os.getenv("DB_URL")
+DB_URL = os.getenv("DATABASE_URL")
+
 BUCKET = os.getenv("AWS_S3_BUCKET", "shipnoise-data")
 REGION = os.getenv("AWS_REGION", "us-east-2")
 

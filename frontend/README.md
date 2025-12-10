@@ -20,7 +20,7 @@ npm start
 Environment (`.env.local`):
 
 ```bash
-CLIPS_API_BASE_URL=https://<your-api-host>      # required: FastAPI base URL
+NEXT_PUBLIC_API_URL=https://orca-shipnoise.fly.dev # FastAPI/Next API base URL (env override; defaults to this URL if unset)
 # optional if upstream returns only an S3 key
 CLIPS_AUDIO_BASE_URL=https://your-audio-bucket-or-cloudfront-domain
 ```

@@ -4,3 +4,4 @@ sqlalchemy
 python-dotenv
 boto3
 pandas
+psycopg2-binary

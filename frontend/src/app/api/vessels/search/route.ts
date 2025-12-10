@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const DEFAULT_BACKEND_BASE_URL = "http://18.220.84.169:8000";
-
+const DEFAULT_BACKEND_BASE_URL = "https://orca-shipnoise.fly.dev";
 const BACKEND_BASE_URL =
-  process.env.CLIPS_API_BASE_URL?.replace(/\/$/, "") ||
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
   DEFAULT_BACKEND_BASE_URL;
 
 export const revalidate = 0;

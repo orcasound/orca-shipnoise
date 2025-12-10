@@ -1,16 +1,15 @@
-# fly.toml app configuration file generated for orca-shipnoise on 2025-12-09T00:52:39-08:00
+# fly.toml app configuration file generated for frontend-bitter-bush-1528 on 2025-12-09T03:02:45-08:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'orca-shipnoise'
-primary_region = 'iad'
+app = 'frontend-bitter-bush-1528'
+primary_region = 'sjc'
 
 [build]
-  dockerfile = "Dockerfile"
 
 [http_service]
-  internal_port = 8080
+  internal_port = 3000
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
