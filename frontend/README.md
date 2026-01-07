@@ -1,65 +1,46 @@
-# Shipnoise Frontend
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-Next.js UI for searching vessels, aggregating multi-site clips across ~30 days, inline playback, and viewing reported issues.
+## Getting Started
 
-## Quick Start
+First, run the development server:
 
 ```bash
-npm install
 npm run dev
-# open http://localhost:3000
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-Build and production serve:
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Shipnoise Clips API
+
+The app now proxies your EC2 database-backed API so the UI can stay on the same origin. Configure the server-to-server hop via environment variables in `.env.local`:
 
 ```bash
-npm run build
-npm start
+CLIPS_API_BASE_URL=http://18.191.247.109:8000
 ```
 
-Environment (`.env.local`):
+`/api/clips` accepts the same query parameters as the EC2 FastAPI service (`site`, `date`, optional `limit`) and forwards the FastAPI JSON (including `audio_urls` with fully qualified TS segment URLs). Use any of the four site codes (`Bush_Point`, `Orcasound_Lab`, `Port_Townsend`, `Sunset_Bay`):
 
 ```bash
-NEXT_PUBLIC_API_URL=https://orca-shipnoise.fly.dev # FastAPI/Next API base URL (env override; defaults to this URL if unset)
-# optional if upstream returns only an S3 key
-CLIPS_AUDIO_BASE_URL=https://your-audio-bucket-or-cloudfront-domain
+curl 'http://localhost:3000/api/clips?site=Bush_Point&date=2025-11-08'
 ```
 
-## Data Pipeline
-
-1) **Vessel autocomplete**: `SelectionPanel` calls `/api/vessels/search`, which proxies to `${CLIPS_API_BASE_URL}/vessels/search` and returns candidate names.  
-2) **Clip aggregation**: Search triggers `/api/clips/search`:  
-   - Primary: `${CLIPS_API_BASE_URL}/clips/search` for multi-site aggregated results.  
-   - Fallback: per-day, per-site fetch via `/api/clips` (proxy to `${CLIPS_API_BASE_URL}/clips`) to collect up to 5 matches per site over the last 30 days.  
-3) **Playback**: UI passes `presigned_url`/`record_url` to `InlineWavePlayer`; falls back to a sample audio if missing.  
-4) **Issue dashboard**: `/report` calls `/api/issues`, which forwards to a Google Apps Script endpoint and renders sorted submissions.
-
-## Files and Roles
-
-- `src/app/page.tsx`: Home entry; renders `Banner` and `SelectionPanel`.  
-- `src/app/layout.tsx`, `src/app/globals.css`: App shell and global styles.  
-- `src/components/Banner.tsx`: Black header with logo, improvement link, and Tally feedback modal.  
-- `src/components/SelectionPanel.tsx`: Core search panel handling input, autocomplete, multi-site querying, and status.  
-- `src/components/AvailableRecordings.tsx`: Groups results by site with expand/collapse and Mailchimp script load.  
-- `src/components/InlineWavePlayer.tsx`: Inline audio player with faux waveform and seek.  
-- `src/lib/waveform.ts`: Generates pseudo-random waveform heights.  
-- `src/app/api/clips/route.ts`: Same-origin proxy for `site+date` queries to upstream `/clips`.  
-- `src/app/api/clips/search/route.ts`: Aggregated or fallback multi-site search logic.  
-- `src/app/api/vessels/search/route.ts`: Vessel/MMSI autocomplete proxy.  
-- `src/app/api/issues/route.ts`: Fetches issue list from Google Apps Script.  
-- `src/app/report/page.tsx`: Issue dashboard with detail modal.  
-- `next.config.ts`, `tsconfig.json`, `eslint.config.mjs`, `postcss.config.mjs`: Build, type-check, and styling configs.  
-- `public/`: Static assets; `src/assets/` images and SVGs for components.
-
-## Usage Notes
-
-- **Search**: Type vessel name or MMSI, pick an autocomplete option, click Search; results group by site and can expand to play.  
-- **Playback**: Browsers may require a first click to start audio; the waveform bar supports seeking.  
-- **Feedback**: Header button opens the Tally form; `/report` shows collected submissions.
-
-## Scripts
-
-- `npm run dev`: Local development.  
-- `npm run build`: Production build.  
-- `npm start`: Serve the production build.  
-- `npm run lint`: ESLint check.
+In the selection panel users type a vessel/MMSI (or leave it blank) and hit Search; the app automatically queries all four sites for the most recent UTC day plus the previous 4 days, so if a vessel appears multiple times across the window you’ll see every clip stacked in the existing UI. If no clips are found across that window you’ll see a warning instead.

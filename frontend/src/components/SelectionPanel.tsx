@@ -7,7 +7,6 @@ import DeleteIcon from '@/assets/delete.svg';
 import WarningIcon from '@/assets/Warning.svg';
 import SearchIcon from '@/assets/Search.svg';
 
-
 declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void;
@@ -18,17 +17,16 @@ type VesselOption = {
   name: string;
 };
 
+// Update 1: Matches the new API response structure
 type ClipApiResult = {
   site: string;
   date_utc?: string;
   mmsi?: string | null;
   shipname?: string | null;
-  presigned_url?: string | null;
-  record_url?: string | null;
-  aws_key?: string | null;
+  audio_urls?: string[] | null;
   cpa_distance_m?: number | null;
-  loudness_db?: number | null;
   t_cpa?: string | null;
+  center_segment_index?: number;
 };
 
 type WarningInfo = {
@@ -37,16 +35,27 @@ type WarningInfo = {
 };
 
 const SITE_LABELS: Record<string, string> = {
-  Bush_Point: 'Bush Point',
-  Orcasound_Lab: 'Orcasound Lab',
-  Port_Townsend: 'Port Townsend',
-  Sunset_Bay: 'Sunset Bay',
+  bush_point: 'Bush Point',
+  orcasound_lab: 'Orcasound Lab',
+  port_townsend: 'Port Townsend',
+  sunset_bay: 'Sunset Bay',
 };
 
 const SITE_OPTIONS = Object.entries(SITE_LABELS).map(([value, label]) => ({
   value,
   label,
 }));
+
+const CLIPS_API_BASE_URL = process.env.NEXT_PUBLIC_CLIPS_API_BASE_URL?.replace(/\/$/, '');
+
+const buildBackendUrl = (path: string, params: URLSearchParams): string | null => {
+  if (!CLIPS_API_BASE_URL) return null;
+  const url = new URL(path, `${CLIPS_API_BASE_URL}/`);
+  for (const [key, value] of params.entries()) {
+    url.searchParams.append(key, value);
+  }
+  return url.toString();
+};
 
 const SITE_VALUES = SITE_OPTIONS.map((option) => option.value);
 
@@ -64,6 +73,13 @@ const formatShipName = (value?: string | null): string | undefined => {
 const normalizeNameForSearch = (value: string): string =>
   value.replace(/[_\s]+/g, ' ').trim().toLowerCase();
 
+const formatTitleCase = (value: string): string =>
+  value
+    .split(' ')
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+    .join(' ');
+
 interface VesselInputProps {
   options: VesselOption[];
   onChange: (option: VesselOption | null) => void;
@@ -71,7 +87,6 @@ interface VesselInputProps {
   value?: string;
   onInputChange?: (value: string) => void;
 }
-
 
 // AutoComplete input for Vessel
 const VesselInput: React.FC<VesselInputProps> = ({ options, onChange, placeholder, value, onInputChange }) => {
@@ -199,6 +214,9 @@ const SelectionPanel = () => {
   const [recordings, setRecordings] = useState<RecordingEntry[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [vesselOptions, setVesselOptions] = useState<VesselOption[]>([]);
+  
+  // Optimization: Ref to store the AbortController for the main search
+  const mainSearchAbortController = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const normalizedValue = normalizeNameForSearch(vesselInputValue);
@@ -208,13 +226,21 @@ const SelectionPanel = () => {
     }
 
     const controller = new AbortController();
-    const fetchSuggestions = async () => {
+    
+    // Optimization: Debounce the suggestion fetch by 300ms
+    // This prevents firing a request for every single keystroke
+    const timeoutId = setTimeout(async () => {
       try {
         const params = new URLSearchParams({
           q: normalizedValue,
           limit: '20',
         });
-        const response = await fetch(`/api/vessels/search?${params.toString()}`, {
+        const url = buildBackendUrl('/vessels/search', params);
+        if (!url) {
+          console.error('NEXT_PUBLIC_CLIPS_API_BASE_URL is not configured');
+          return;
+        }
+        const response = await fetch(url, {
           signal: controller.signal,
         });
         if (!response.ok) {
@@ -231,11 +257,10 @@ const SelectionPanel = () => {
         if ((error as Error).name === 'AbortError') return;
         console.error('Failed to fetch vessel suggestions', error);
       }
-    };
-
-    fetchSuggestions();
+    }, 300); // 300ms delay
 
     return () => {
+      clearTimeout(timeoutId);
       controller.abort();
     };
   }, [vesselInputValue]);
@@ -259,18 +284,24 @@ const SelectionPanel = () => {
   };
 
   const normalizedInput = vesselInputValue.trim();
-  const isSearchEnabled = !isSearching;
 
   const normalizeClip = (clip: ClipApiResult): RecordingEntry => {
+    const siteKey = clip.site?.replace(/\s+/g, '_').toLowerCase();
     const locationLabel =
-      SITE_LABELS[clip.site] ?? clip.site?.replace(/_/g, ' ') ?? 'Unknown site';
-    const audioSource = clip.presigned_url ?? clip.record_url ?? '';
+      (siteKey && SITE_LABELS[siteKey]) ||
+      (clip.site ? formatTitleCase(clip.site.replace(/[_\s]+/g, ' ')) : 'Unknown site');
+
+    const audioSources = Array.isArray(clip.audio_urls)
+      ? clip.audio_urls.filter((url) => typeof url === 'string' && url.trim().length > 0)
+      : [];
+
     const vesselName =
       formatShipName(clip.shipname) ??
       formatShipName(clip.mmsi ?? '') ??
       clip.shipname ??
       clip.mmsi ??
       'Unknown vessel';
+      
     return {
       vessel: vesselName,
       mmsi: clip.mmsi ?? undefined,
@@ -278,22 +309,45 @@ const SelectionPanel = () => {
       date: clip.date_utc,
       time: undefined,
       timestamp: clip.t_cpa ?? null,
-      recordUrl: audioSource,
+      audioUrls: audioSources, // Mapping to the new interface
       cpaDistanceMeters: clip.cpa_distance_m ?? undefined,
-      noiseLevelDb: clip.loudness_db ?? undefined,
+      noiseLevelDb: undefined,
     };
   };
 
   const handleSearchClick = async () => {
+    // Optimization: Cancel any previous pending search requests
+    if (mainSearchAbortController.current) {
+      mainSearchAbortController.current.abort();
+    }
+    mainSearchAbortController.current = new AbortController();
+
     setIsSearching(true);
     setWarningInfo(null);
 
     try {
       const searchDateIso = new Date().toISOString().slice(0, 10);
+      const requestEndDate = searchDateIso;
+      const startDateObj = new Date(searchDateIso);
+      startDateObj.setUTCDate(startDateObj.getUTCDate() - 59);
+      const requestStartDate = startDateObj.toISOString().slice(0, 10);
+
       const params = new URLSearchParams({
-        ship: normalizedInput,
+        shipname: normalizedInput,
+        start_date: requestStartDate,
+        end_date: requestEndDate,
+        limit_per_site: '5',
       });
-      const response = await fetch(`/api/clips/search?${params.toString()}`);
+      SITE_VALUES.forEach((site) => params.append('sites', site));
+      const url = buildBackendUrl('/clips/search', params);
+      if (!url) {
+        throw new Error('NEXT_PUBLIC_CLIPS_API_BASE_URL is not configured');
+      }
+      
+      const response = await fetch(url, {
+        signal: mainSearchAbortController.current.signal
+      });
+      
       if (!response.ok) {
         throw new Error(`Clip search failed with ${response.status}`);
       }
@@ -302,17 +356,17 @@ const SelectionPanel = () => {
       const clips: ClipApiResult[] = Array.isArray(payload.results)
         ? payload.results
         : [];
-      const startDate: string | undefined =
+      const responseStartDate: string | undefined =
         typeof payload.start_date === 'string' ? payload.start_date : undefined;
-      const endDate: string | undefined =
+      const responseEndDate: string | undefined =
         typeof payload.end_date === 'string' ? payload.end_date : undefined;
       const dateRangeLabel: string | undefined =
         typeof payload.date_range_label === 'string'
           ? payload.date_range_label
-          : startDate && endDate
-            ? startDate === endDate
-              ? startDate
-              : `${startDate} – ${endDate}`
+          : responseStartDate && responseEndDate
+            ? responseStartDate === responseEndDate
+              ? responseStartDate
+              : `${responseStartDate} – ${responseEndDate}`
             : undefined;
 
       const normalizedRecordings = clips.map(normalizeClip);
@@ -336,8 +390,8 @@ const SelectionPanel = () => {
         vessel: vesselLabel,
         site: 'ALL_SITES',
         date: searchDateIso,
-        date_window: dateRangeLabel ?? 'LAST_30_DAYS',
-        date_range_label: dateRangeLabel ?? 'LAST_30_DAYS',
+        date_window: dateRangeLabel ?? 'LAST_60_DAYS',
+        date_range_label: dateRangeLabel ?? 'LAST_60_DAYS',
       });
 
       setRecordings(normalizedRecordings);
@@ -345,14 +399,22 @@ const SelectionPanel = () => {
       setHideDropdownSignal((prev) => prev + 1);
       setWarningInfo(null);
     } catch (error) {
+      if ((error as Error).name === 'AbortError') return;
       console.error('Failed to load clips', error);
+      const message =
+        (error as Error).message?.includes('NEXT_PUBLIC_CLIPS_API_BASE_URL') === true
+          ? 'Search unavailable: backend URL is not configured.'
+          : 'Unable to load recordings right now. Please try again.';
       setShowRecordings(false);
       setWarningInfo({
         icon: WarningIcon,
-        content: 'Unable to load recordings right now. Please try again.',
+        content: message,
       });
     } finally {
-      setIsSearching(false);
+      // Only set searching to false if we weren't aborted
+      if (mainSearchAbortController.current && !mainSearchAbortController.current.signal.aborted) {
+         setIsSearching(false);
+      }
     }
   };
 
