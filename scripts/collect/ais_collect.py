@@ -2,12 +2,15 @@ import os, json, math, asyncio, websockets, argparse, requests
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
 
+load_dotenv()
 
 # ============ CONFIG ============
 ORCASITE_GRAPHQL = "https://live.orcasound.net/graphql"
 AISSTREAM_WS = "wss://stream.aisstream.io/v0/stream"
+
+# Fixed collection radius (km)
+DEFAULT_RADIUS_KM = 30.0
 
 # ============ ENV ============
 API_KEY = os.getenv("AISSTREAM_API_KEY")
@@ -18,7 +21,6 @@ if not API_KEY:
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--site", required=True, help="Site slug, e.g. bush-point")
-    p.add_argument("--radius-km", type=float, default=30.0)
     return p.parse_args()
 
 # ============ ORCASITE ============
@@ -68,6 +70,12 @@ def get_base_dir(site_slug: str):
     base.mkdir(parents=True, exist_ok=True)
     return base
 
+def make_out_file(base_dir: Path) -> Path:
+    now = datetime.now(timezone.utc)
+    out_dir = base_dir / now.strftime("%Y%m%d")
+    out_dir.mkdir(exist_ok=True)
+    return out_dir / f"ais_raw_{now.strftime('%Y%m%dT%H%M%SZ')}.jsonl"
+
 # ============ GEO ============
 def bbox_from_radius_km(lat, lon, r_km):
     dlat = r_km / 111.0
@@ -75,8 +83,10 @@ def bbox_from_radius_km(lat, lon, r_km):
     return [[lat - dlat, lon - dlon], [lat + dlat, lon + dlon]]
 
 # ============ COLLECT ============
-async def collect_once(out_path: Path, lat: float, lon: float, r_km: float, site: str):
+async def collect_once(out_path: Path, lat: float, lon: float, site: str):
+    r_km = DEFAULT_RADIUS_KM
     bbox = bbox_from_radius_km(lat, lon, r_km)
+
     sub_msg = {
         "APIKey": API_KEY,
         "BoundingBoxes": [bbox],
@@ -93,7 +103,15 @@ async def collect_once(out_path: Path, lat: float, lon: float, r_km: float, site
 
         cnt = 0
         with open(out_path, "w", encoding="utf-8") as f:
-            meta = {"_meta": {"site": site, "latitude": lat, "longitude": lon, "radius_km": r_km}}
+            meta = {
+                "_meta": {
+                    "site": site,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "radius_km": r_km,
+                    "started_at": start.isoformat(),
+                }
+            }
             f.write(json.dumps(meta) + "\n")
 
             async for msg in ws:
@@ -112,25 +130,23 @@ async def collect_once(out_path: Path, lat: float, lon: float, r_km: float, site
 async def main():
     args = parse_args()
     site = args.site
-    r_km = args.radius_km
 
     lat, lon = get_site_latlon(site)
     print(f"Site {site}: lat={lat}, lon={lon}")
 
     base_dir = get_base_dir(site)
 
-    now = datetime.now(timezone.utc)
-    out_dir = base_dir / now.strftime("%Y%m%d")
-    out_dir.mkdir(exist_ok=True)
-    out_file = out_dir / f"ais_raw_{now.strftime('%Y%m%dT%H%M%SZ')}.jsonl"
+    out_file = make_out_file(base_dir)
 
     try:
-        await collect_once(out_file, lat, lon, r_km, site)
+        await collect_once(out_file, lat, lon, site)
     except Exception as e:
         print("Error:", repr(e))
         print("Retrying in 5s...")
         await asyncio.sleep(5)
-        await collect_once(out_file, lat, lon, r_km, site)
+
+        out_file = make_out_file(base_dir)
+        await collect_once(out_file, lat, lon, site)
 
 if __name__ == "__main__":
     asyncio.run(main())
