@@ -1,189 +1,181 @@
 # 📂 Shipnoise — Scripts Folder Documentation
 
 This directory contains all automated processing logic for the Shipnoise AIS-to-audio pipeline.  
-It is divided into **three logical stages**:
+It is divided into **three logical stages**, with site-specific behavior fully parameterized and driven by external configuration.
 
-```
 Scripts/
 ├── collect/        # Live AIS data collection from AISstream
 ├── preprocess/     # Timeline utilities for aligning AIS and audio
-├── process/        # Build transits, match audio, extract loudest clips
-└── upload_all_to_s3.sh   # Daily S3 upload + cleanup automation
-```
+└── process/        # Build transits, match AIS to audio, extract loudest segments
 
-Each section below explains the purpose of every script inside these folders.
-
----
-
-# 1️⃣ `collect/` — AIS Live Data Collection
-
-These scripts connect to AISstream and continuously record AIS messages for each hydrophone site.
-
-### Files
-- `ais_collect_bush_point.py`
-- `ais_collect_orcasound_lab.py`
-- `ais_collect_port_townsend.py`
-- `ais_collect_sunset_bay.py`
-- `run_all_collect.sh`
-
-### Purpose
-- Open a websocket connection to AISstream  
-- Filter messages around the site’s geographic bounding box  
-- Save JSONL logs grouped by **UTC date folder (YYYYMMDD/)**  
-- Run continuously under systemd timers  
-
-These raw AIS logs are later processed into transits.
+The Scripts/ directory is responsible for **data collection and processing only**.  
+It does **not** handle frontend playback, orchestration, or long-term audio hosting.
 
 ---
 
-# 2️⃣ `preprocess/` — Audio Timeline Preparation
+## 1️⃣ collect/ — AIS Live Data Collection
+
+These scripts connect to AISstream and record AIS messages for a **single hydrophone site per run**.
 
 ### Files
-- `get_latest_timestamp.py`
+- ais_collect.py
 
 ### Purpose
-Hydrophone audio files in S3 use timestamp-based filenames.  
+ais_collect.py is a **single parameterized collector**, replacing all previous per-site collection scripts.
+
+Example:
+python ais_collect.py --site bush-point
+
+The script:
+- Opens a websocket connection to AISstream
+- Fetches site configuration (latitude / longitude) from Orcasite’s GraphQL API
+- Derives a geographic bounding box using a fixed collection radius
+- Filters AIS messages within the site’s region
+- Writes raw AIS messages to JSONL files
+- Organizes output by UTC date folder (YYYYMMDD/)
+
+Each run collects AIS data for a **fixed duration** (default: 3600 seconds) and then exits.
+
+### Runtime model
+- One site per process
+- Process lifecycle (start, restart, scheduling) is managed externally (e.g. Fly.io)
+- The script itself does **not** orchestrate multiple sites
+
+These raw AIS logs are later consumed by processing jobs.
+
+---
+
+## 2️⃣ preprocess/ — Audio Timeline Preparation
+
+### Files
+- get_latest_timestamp.py
+
+### Purpose
+Hydrophone audio is served via **Orcasound public HLS streams** using timestamp-based segment filenames.
+
 This script:
+- Reads available audio segment filenames for each site
+- Extracts start timestamps
+- Produces a timeline CSV
+- Enables precise alignment between AIS CPA timestamps and audio streams
 
-- Reads the filenames for each site  
-- Extracts the start timestamp of each audio file  
-- Produces a timeline CSV (used by processing scripts)  
-- Ensures AIS → audio matching can locate the correct file  
-
-This is required before the processing stage can run.
-
----
-
-# 3️⃣ `process/` — AIS → Transit → Audio Extraction Pipeline
-
-This folder contains the **core logic** that converts AIS logs into audio clips.
+This step must run before transit-to-audio matching.
 
 ---
 
-## 3.1 — Transit Building Scripts  
-`ais_to_transits_<site>.py`
+## 3️⃣ process/ — AIS → Transit → Audio Processing Pipeline
 
-Examples:
-- `ais_to_transits_bush_point.py`
-- `ais_to_transits_orcasound_lab.py`
-- `ais_to_transits_port_townsend.py`
-- `ais_to_transits_sunset_bay.py`
+This folder contains the **core processing logic** that converts AIS logs into structured vessel events and links them to audio.
 
-### Purpose
+All scripts are **parameterized by site** and intended to run as **scheduled jobs**.
+
+---
+
+### 3.1 — Transit Building  
+ais_to_transits.py
+
+#### Purpose
 Convert raw AIS messages into structured **vessel transit events**.
 
-Each script:
-- Loads AIS JSON logs  
-- Groups messages by MMSI  
-- Detects when vessels enter / exit the site region  
-- Computes **CPA (Closest Point of Approach)**  
-- Outputs a daily transit list CSV  
+The script:
+- Loads AIS JSON logs for a given site and date
+- Groups messages by MMSI
+- Detects vessel entry and exit relative to the site region
+- Computes CPA (Closest Point of Approach)
+- Outputs a daily transit dataset
 
-This is the foundational step.
+Example:
+python ais_to_transits.py --site bush-point --date 20260102
+
+This replaces all former ais_to_transits_<site>.py scripts.
 
 ---
 
-## 3.2 — `match_all_transits_to_ts.py`  
-### Purpose
-Match each vessel’s **CPA timestamp** to the correct **audio file** in S3.
+### 3.2 — match_all_transits_to_ts.py
+
+#### Purpose
+Match each vessel’s **CPA timestamp** to the appropriate Orcasound audio stream.
 
 The script:
-- Loads transit CSVs from step 3.1  
-- Reads audio timeline metadata (from `preprocess/`)  
-- Determines which audio file covers the CPA moment  
-- Produces a mapping such as:
+- Loads transit outputs from step 3.1
+- Reads audio timeline metadata from preprocess/
+- Determines which HLS stream and segment cover the CPA moment
+- Computes the relative offset within the stream
 
-```
-CPA (timestamp) → audio file + relative window
-```
+Resulting mapping:
+CPA timestamp → HLS stream URI + offset
 
-This links AIS movement to the hydrophone audio.
+No audio is downloaded or re-encoded at this stage.
 
 ---
 
-## 3.3 — `merge_and_dedup.py`  
-### Purpose
-Normalize and clean the matched transit results.
+### 3.3 — merge_and_dedup.py
+
+#### Purpose
+Normalize and clean matched transit results.
 
 The script:
-- Merges intermediate CSV outputs  
-- Removes duplicate transits  
-- Cleans timestamp and ship name formats  
-- Ensures only valid and unique events continue to the extraction stage  
-
-This guarantees high-quality input for the next script.
+- Merges intermediate outputs
+- Removes duplicate transit events
+- Normalizes timestamps and vessel identifiers
+- Ensures only valid, unique events proceed downstream
 
 ---
 
-## 3.4 — `extract_loudest_segment.py`  
-### Purpose
-Extract the **loudest 30-second audio clip** surrounding the CPA.
+### 3.4 — extract_loudest_segment.py
 
-The script:
-- Downloads or streams the audio file from S3  
-- Analyzes dB levels near CPA  
-- Locates the loudest 30-second window  
-- Saves a WAV file locally  
-- Computes metrics:
-  - `mean_volume_db`
-  - `max_volume_db`
+#### Purpose
+Locate and register the **loudest 30-second audio window** around a vessel CPA using Orcasound HLS segments.
 
-It also outputs:
+This script operates in **strict mode** and only records detections when a complete 30-second window can be constructed.
 
-```
-loudness_summary_YYYYMMDD.csv
-```
+#### Logic Overview
 
-This summary file is later imported into PostgreSQL by:
+For each _windowed_merged.csv file:
+1. Parse candidate HLS segment ranges from segment_range
+2. Download candidate .ts segments with retry logic
+3. Convert segments to mono WAV and analyze loudness
+4. Identify the loudest center segment
+5. Classify ship-noise confidence
+6. Require [previous, center, next] segments to be present
+7. Insert detection metadata directly into the database
 
-```
-etl_from_loudness_summary.py
-```
-
----
-
-# 4️⃣ `upload_all_to_s3.sh` — Daily Automation
-
-### Purpose
-Upload all processed data to S3 and clean old files.
-
-This script:
-
-- Determines YESTERDAY (UTC)
-- Uploads:
-  - extracted audio clips  
-  - metadata CSVs  
-  - raw AIS archives  
-- Deletes local data older than 5 days  
-- Writes logs to `/home/ubuntu/aisstream/logs/`  
-
-It is normally run via a daily systemd timer at:
-
-```
-UTC 09:00
-```
+#### Key Characteristics
+- Downloaded .ts and .wav files are temporary only
+- No audio files are persisted
+- Incomplete 30-second windows are dropped
+- Results are written directly to the database
+- Frontend playback uses stored HLS segment manifests
 
 ---
 
-# 🧭 Pipeline Overview Diagram
+## 🧭 Pipeline Overview
 
-```
-AISstream → collect/ → preprocess/ → process/ → S3 → backend ETL → PostgreSQL → API
-```
-
-This `Scripts/` directory contains everything up to the S3 upload step.
+AISstream
+  ↓
+collect/   (fixed-duration runs, one site per process)
+  ↓
+preprocess/
+  ↓
+process/   (scheduled jobs)
+  ↓
+Database (detections + HLS manifests)
+  ↓
+API / Shipnoise frontend (HLS seek & playback)
 
 ---
 
-# ✅ Summary
+## ✅ Summary
 
-The `Scripts/` folder automates the entire AIS → transit → audio extraction pipeline:
+The Scripts/ folder handles:
+- Live AIS collection
+- Vessel transit detection
+- Alignment of AIS events with Orcasound audio
+- Loudest-segment detection with strict 30-second validation
 
-- Collect raw AIS  
-- Build vessel transits  
-- Match to hydrophone audio  
-- Extract loudest CPA clips  
-- Upload outputs to S3  
+It does **not**:
+- Host or re-upload audio
+- Manage orchestration internally
+- Perform ETL ingestion via intermediate files
 
-These results feed the backend API and the Shipnoise web interface.
-
+All results reference **Orcasound’s existing HLS streams** as the authoritative audio source.
