@@ -1,4 +1,4 @@
-```md
+
 # Shipnoise Backend (FastAPI + PostgreSQL / Neon)
 
 This repository contains the backend services for the Shipnoise project.
