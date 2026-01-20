@@ -51,58 +51,6 @@ def generate_public_urls(s3_bucket, segment_details):
             urls.append(url)
     return urls
 
-# ============================================================
-#  ENDPOINT: Get Clips (Legacy/Direct)
-# ============================================================
-@app.get("/clips")
-def get_clips(
-    site: str = Query(...),
-    date: str = Query(..., description="YYYYMMDD or YYYY-MM-DD"),
-    limit: int = Query(200, ge=1, le=500),
-):
-    sql = """
-        SELECT
-            id,
-            site,
-            date,
-            mmsi,
-            shipname,
-            t_cpa,
-            confidence,
-            s3_bucket,
-            segment_details
-        FROM records
-        WHERE site = :site
-          AND date = :date
-        ORDER BY t_cpa DESC NULLS LAST
-        LIMIT :limit;
-    """
-
-    # FIX: Force site to lowercase and remove dashes from date to match DB format
-    params = {
-        "site": site.lower(), 
-        "date": date.replace("-", ""), 
-        "limit": limit
-    }
-
-    with engine.begin() as conn:
-        rows = conn.execute(text(sql), params).mappings().all()
-
-    results = []
-    for row in rows:
-        public_urls = generate_public_urls(row["s3_bucket"], row["segment_details"])
-        results.append({
-            **row,
-            "audio_urls": public_urls,
-            "center_segment_index": 1
-        })
-
-    return {
-        "count": len(results),
-        "site": site,
-        "date": date,
-        "results": results,
-    }
 
 # ============================================================
 #  ENDPOINT: Search Clips (Main Search)
