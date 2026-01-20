@@ -1,46 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Shipnoise Frontend
 
-## Getting Started
+A Next.js frontend for browsing ship-noise audio clips. The UI supports site/date filtering, vessel search, and aggregates recent clips across multiple sites.
 
-First, run the development server:
+## Features
+
+- Filter by site and date to view available clips
+- Search by vessel name
+- Query the FastAPI backend via `/clips/search` with multi-site search
+
+## Tech Stack
+
+- Next.js (App Router)
+- React
+- TypeScript
+- Tailwind CSS
+
+## Local Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000` in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Shipnoise Clips API
-
-The app now proxies your EC2 database-backed API so the UI can stay on the same origin. Configure the server-to-server hop via environment variables in `.env.local`:
+Set the backend API base URL in `.env.local`. This value is read in the browser (because of the `NEXT_PUBLIC_` prefix) and used to build `/clips/search` requests:
 
 ```bash
-CLIPS_API_BASE_URL=http://18.191.247.109:8000
+NEXT_PUBLIC_CLIPS_API_BASE_URL=
 ```
 
-`/api/clips` accepts the same query parameters as the EC2 FastAPI service (`site`, `date`, optional `limit`) and forwards the FastAPI JSON (including `audio_urls` with fully qualified TS segment URLs). Use any of the four site codes (`Bush_Point`, `Orcasound_Lab`, `Port_Townsend`, `Sunset_Bay`):
+Set it to the base URL for your backend API. We have not deployed it yet, so leave it empty until the service is live, or point it to your local API during development.
+
+The frontend calls `/clips/search` with `shipname`, `start_date`, `end_date`, `sites`, and `limit_per_site`, and uses the FastAPI JSON response (including `audio_urls` pointing to S3-hosted audio). `shipname` is populated from the vessel name input (or left blank for all vessels).
+
+Example (replace with your backend base URL):
 
 ```bash
-curl 'http://localhost:3000/api/clips?site=Bush_Point&date=2025-11-08'
+curl 'https://your-backend-host/clips/search?shipname=&start_date=2025-11-01&end_date=2025-11-08&sites=Bush_Point&limit_per_site=5'
 ```
 
-In the selection panel users type a vessel/MMSI (or leave it blank) and hit Search; the app automatically queries all four sites for the most recent UTC day plus the previous 4 days, so if a vessel appears multiple times across the window you’ll see every clip stacked in the existing UI. If no clips are found across that window you’ll see a warning instead.
+## Scripts
+
+```bash
+npm run dev     # local dev server
+npm run build   # production build
+npm run start   # start production server
+npm run lint    # lint
+```
+
+## Project Structure
+
+```
+src/
+  app/          # routes and pages
+  components/   # reusable components
+  lib/          # helpers/utilities
+  types/        # type definitions
+  assets/       # static assets
+public/         # public static files
+```
