@@ -1,12 +1,12 @@
 # Shipnoise Frontend
 
-A Next.js frontend for browsing ship-noise audio clips. The UI supports site/date filtering, vessel search, and aggregates recent clips across multiple sites.
+A Next.js frontend for browsing ship-noise audio clips. The UI supports site/date filtering, vessel name search, and aggregates recent clips across multiple sites.
 
 ## Features
 
 - Filter by site and date to view available clips
-- Search by vessel name
-- Query the FastAPI backend via `/clips/search` with multi-site search
+- Search by vessel name (shipname)
+- Query the FastAPI backend via `/clips/search` across multiple sites
 
 ## Tech Stack
 
@@ -32,7 +32,7 @@ Set the backend API base URL in `.env.local`. This value is read in the browser 
 NEXT_PUBLIC_CLIPS_API_BASE_URL=
 ```
 
-Set it to the base URL for your backend API. We have not deployed it yet, so leave it empty until the service is live, or point it to your local API during development.
+Set it to the base URL for your backend API. We have not deployed it yet (planned for Fly.io), so leave it empty until the service is live, or point it to your local API during development.
 
 The frontend calls `/clips/search` with `shipname`, `start_date`, `end_date`, `sites`, and `limit_per_site`, and uses the FastAPI JSON response (including `audio_urls` pointing to S3-hosted audio). `shipname` is populated from the vessel name input (or left blank for all vessels).
 
