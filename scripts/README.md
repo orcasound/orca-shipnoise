@@ -150,7 +150,7 @@ For each _windowed_merged.csv file:
 ---
 
 ## 🧭 Pipeline Overview
-
+```
 AISstream
   ↓
 collect/   (fixed-duration runs, one site per process)
@@ -162,7 +162,7 @@ process/   (scheduled jobs)
 Database (detections + HLS manifests)
   ↓
 API / Shipnoise frontend (HLS seek & playback)
-
+```
 ---
 
 ## ✅ Summary
