@@ -2,6 +2,19 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import {
+  Box,
+  Button,
+  IconButton,
+  InputAdornment,
+  List,
+  ListItemButton,
+  ListItemText,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
 import AvailableRecordings, { type RecordingEntry } from '@/components/AvailableRecordings';
 import DeleteIcon from '@/assets/delete.svg';
 import WarningIcon from '@/assets/Warning.svg';
@@ -163,44 +176,79 @@ const VesselInput: React.FC<VesselInputProps> = ({ options, onChange, placeholde
   };
 
   return (
-    <div className="relative w-full" ref={containerRef}>
-      <input
-        type="text"
+    <Box ref={containerRef} sx={{ position: 'relative', width: '100%' }}>
+      <TextField
+        fullWidth
         value={inputValue}
         onChange={handleInputChange}
         onFocus={handleInputFocus}
         placeholder={placeholder}
-        className="h-[42px] w-full rounded-[4px] border border-gray-300 bg-white px-4 text-left placeholder:text-left focus:border-[#111827] focus:outline-none sm:px-5"
+        variant="outlined"
+        size="small"
+        InputProps={{
+          endAdornment: inputValue ? (
+            <InputAdornment position="end">
+              <IconButton
+                size="small"
+                onClick={handleClear}
+                aria-label="Clear"
+                sx={{ p: 0.25 }}
+              >
+                <Image
+                  src={DeleteIcon}
+                  alt="Clear"
+                  width={20}
+                  height={20}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+              </IconButton>
+            </InputAdornment>
+          ) : null,
+        }}
+        sx={{
+          '& .MuiOutlinedInput-root': {
+            height: 42,
+            borderRadius: '4px',
+            backgroundColor: 'white',
+            '& fieldset': { borderColor: '#d1d5db' },
+            '&:hover fieldset': { borderColor: '#111827' },
+            '&.Mui-focused fieldset': { borderColor: '#111827' },
+          },
+          '& .MuiOutlinedInput-input': {
+            px: { xs: 2, sm: 2.5 },
+            py: 1,
+          },
+        }}
       />
-      {inputValue && (
-        <button
-          type="button"
-          onClick={handleClear}
-          className="absolute right-4 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center cursor-pointer sm:right-5"
-        >
-          <Image
-            src={DeleteIcon}
-            alt="Clear"
-            width={20}
-            height={20}
-            className="h-full w-full object-contain"
-          />
-        </button>
-      )}
       {showOptions && filteredOptions.length > 0 && (
-        <div className="absolute top-full left-0 right-0 z-10 mt-2 max-h-48 overflow-y-auto rounded-[4px] border border-gray-300 bg-white text-left shadow-lg">
-          {filteredOptions.map((opt, idx) => (
-            <div
-              key={idx}
-              className="cursor-pointer p-2 text-left transition hover:bg-gray-100"
-              onClick={() => handleSelect(opt)}
-            >
-              <div className="font-medium text-gray-800">{opt.name}</div>
-            </div>
-          ))}
-        </div>
+        <Paper
+          elevation={6}
+          sx={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            zIndex: 10,
+            mt: 1,
+            maxHeight: 192,
+            overflowY: 'auto',
+            borderRadius: '4px',
+            border: '1px solid #d1d5db',
+          }}
+        >
+          <List dense disablePadding>
+            {filteredOptions.map((opt, idx) => (
+              <ListItemButton key={idx} onClick={() => handleSelect(opt)}>
+                <ListItemText
+                  primary={opt.name}
+                  primaryTypographyProps={{ fontWeight: 500, color: '#1f2937' }}
+                />
+              </ListItemButton>
+            ))}
+          </List>
+        </Paper>
       )}
-    </div>
+    </Box>
   );
 };
 
@@ -421,46 +469,76 @@ const SelectionPanel = () => {
   const iconSize = 15;
 
   return (
-    <div className="w-full bg-white">
-      <div className="w-full px-4 pb-[30px] pt-6 sm:px-6 md:pt-10">
-        <div className="mx-auto flex w-full max-w-[90rem] flex-col gap-[30px]">
+    <Box sx={{ width: '100%', bgcolor: 'white' }}>
+      <Box sx={{ width: '100%', px: { xs: 2, sm: 3 }, pb: '30px', pt: { xs: 3, md: 5 } }}>
+        <Stack sx={{ mx: 'auto', width: '100%', maxWidth: '90rem' }} spacing={3.75}>
           {/* Search Inputs */}
-          <div className="flex justify-center">
-            <div className="w-full max-w-[90rem] rounded-[8px] border-2 border-gray-200 bg-white px-5 py-6 md:h-[220px] md:px-[25px] md:py-[25px]">
-              <div className="mb-4 w-full md:mb-[15px] md:h-[56px]">
-                <div
-                  className="flex items-center gap-2 text-left"
-                  style={{
-                    color: '#111827',
-                    fontSize: '22px',
-                    fontWeight: 600,
-                    lineHeight: '28px',
-                    fontFamily: 'Montserrat, sans-serif',
-                  }}
-                >
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Paper
+              variant="outlined"
+              sx={{
+                width: '100%',
+                maxWidth: '90rem',
+                borderRadius: '8px',
+                borderWidth: 2,
+                borderColor: '#e5e7eb',
+                px: { xs: 2.5, md: '25px' },
+                py: { xs: 3, md: '25px' },
+                height: { md: 220 },
+              }}
+            >
+              <Box sx={{ mb: { xs: 2, md: '15px' }, height: { md: 56 } }}>
+                <Stack direction="row" alignItems="center" spacing={1}>
                   <Image
                     src={SearchIcon}
                     alt="Search"
                     width={18}
                     height={18}
-                    className="h-[18px] w-[18px] object-contain"
+                    style={{ width: 18, height: 18, objectFit: 'contain' }}
                   />
-                  Explore Shipnoise Recordings
-                </div>
-                <p className="mt-1 text-left text-[#9CA3AF] text-[18px] leading-[28px] font-medium">
+                  <Typography
+                    sx={{
+                      color: '#111827',
+                      fontSize: '22px',
+                      fontWeight: 600,
+                      lineHeight: '28px',
+                      fontFamily: 'Montserrat, sans-serif',
+                    }}
+                  >
+                    Explore Shipnoise Recordings
+                  </Typography>
+                </Stack>
+                <Typography
+                  sx={{
+                    mt: 1,
+                    color: '#9CA3AF',
+                    fontSize: '18px',
+                    lineHeight: '28px',
+                    fontWeight: 500,
+                  }}
+                >
                   Enter a vessel name to discover and listen to its underwater sound recordings
-                </p>
-              </div>
+                </Typography>
+              </Box>
 
-              <div className="mt-5 w-full">
-                <div className="flex w-full flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:gap-[30px]">
-                  <div className="flex w-full flex-col gap-2 md:flex-1">
-                    <span
-                      className="text-sm font-medium text-left text-[#374151] md:text-[14px]"
-                      style={{ lineHeight: '20px' }}
+              <Box sx={{ mt: 2.5, width: '100%' }}>
+                <Stack
+                  direction={{ xs: 'column', md: 'row' }}
+                  spacing={{ xs: 2, md: '30px' }}
+                  alignItems={{ xs: 'stretch', md: 'flex-end' }}
+                  flexWrap={{ md: 'wrap' }}
+                >
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+                    <Typography
+                      sx={{
+                        fontSize: { xs: '14px', md: '14px' },
+                        fontWeight: 500,
+                        color: '#374151',
+                        lineHeight: '20px',
+                      }}
                     >
                       Vessel Name
-                    </span>
+                    </Typography>
                     <VesselInput
                       key={hideDropdownSignal}
                       options={vesselOptions}
@@ -469,58 +547,72 @@ const SelectionPanel = () => {
                       value={vesselInputValue}
                       placeholder="Enter vessel name"
                     />
-                  </div>
+                  </Box>
 
-                  <div className="flex w-full flex-col justify-end md:w-[170px]">
-                    <button
+                  <Box sx={{ width: { xs: '100%', md: 170 }, display: 'flex', flexDirection: 'column' }}>
+                    <Button
                       onClick={handleSearchClick}
-                      className={`flex h-[42px] w-full items-center justify-center rounded-[100px] text-white transition ${
-                        vesselInputValue.trim()
-                          ? 'cursor-pointer bg-black hover:bg-black/90'
-                          : 'cursor-default bg-[#C9C3C3]/40'
-                      }`}
                       disabled={!vesselInputValue.trim()}
+                      variant="contained"
+                      sx={{
+                        height: 42,
+                        width: '100%',
+                        borderRadius: '100px',
+                        textTransform: 'none',
+                        color: 'white',
+                        bgcolor: vesselInputValue.trim() ? 'black' : 'rgba(201,195,195,0.4)',
+                        '&:hover': {
+                          bgcolor: vesselInputValue.trim() ? 'rgba(0,0,0,0.9)' : 'rgba(201,195,195,0.4)',
+                        },
+                      }}
                     >
                       {isSearching ? 'Loading…' : 'Search'}
-                    </button>
-                  </div>
-                </div>
+                    </Button>
+                  </Box>
+                </Stack>
 
-                <div className="mt-2 min-h-[28px]">
-                  <div className={`flex max-w-[1031px] items-center gap-2 ${warningInfo ? '' : 'invisible'}`}>
-                    <span className="flex h-[15px] w-[15px] shrink-0">
+                <Box sx={{ mt: 1, minHeight: 28 }}>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    sx={{
+                      maxWidth: 1031,
+                      visibility: warningInfo ? 'visible' : 'hidden',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', width: 15, height: 15, flexShrink: 0 }}>
                       {warningInfo && (
                         <Image
                           src={warningInfo.icon}
                           alt="Warning"
                           width={iconSize}
                           height={iconSize}
-                          className="h-full w-full object-contain"
+                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                         />
                       )}
-                    </span>
-                    <span
-                      className="text-sm leading-5 text-[#716E6E]"
-                      style={{ fontFamily: 'Montserrat, sans-serif' }}
+                    </Box>
+                    <Typography
+                      sx={{
+                        fontSize: '14px',
+                        lineHeight: '20px',
+                        color: '#716E6E',
+                        fontFamily: 'Montserrat, sans-serif',
+                      }}
                     >
                       {warningInfo?.content}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                    </Typography>
+                  </Stack>
+                </Box>
+              </Box>
+            </Paper>
+          </Box>
 
           {/* Recordings Table */}
-          {showRecordings && (
-            <AvailableRecordings
-              recordings={recordings}
-            />
-          )}
-        </div>
-      </div>
-
-    </div>
+          {showRecordings && <AvailableRecordings recordings={recordings} />}
+        </Stack>
+      </Box>
+    </Box>
   );
 };
 

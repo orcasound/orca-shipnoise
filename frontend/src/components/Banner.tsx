@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from "react";
-import Image from "next/image";
-import logo from "@/assets/Logo.png";
+import { useState } from 'react';
+import Image from 'next/image';
+import { Box, Button, Link, Stack, Typography } from '@mui/material';
+import logo from '@/assets/Logo.png';
 
 const Banner = () => {
   const [showReportForm, setShowReportForm] = useState(false);
@@ -13,87 +14,183 @@ const Banner = () => {
   return (
     <>
       {/* === Header Wrapper (full width, black background) === */}
-      <header className="z-50 w-full bg-black shadow-md sm:shadow-none">
-        <div className="w-full px-4 py-3 sm:px-6 sm:py-4 lg:px-[35px] lg:py-5">
-
+      <Box
+        component="header"
+        sx={{
+          zIndex: 50,
+          width: '100%',
+          bgcolor: 'black',
+          boxShadow: { xs: '0 4px 6px rgba(0,0,0,0.1)', sm: 'none' },
+        }}
+      >
+        <Box
+          sx={{
+            width: '100%',
+            px: { xs: 2, sm: 3, lg: '35px' },
+            py: { xs: 1.5, sm: 2, lg: 2.5 },
+          }}
+        >
           {/* 
             Flex layout for the header content.
             justify-between pushes logo to the left and buttons to the right.
           */}
-          <div className="flex w-full items-center justify-between">
-
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+            sx={{ width: '100%' }}
+          >
             {/* === Left Logo Section === */}
-            <div className="flex items-center gap-3">
+            <Stack direction="row" alignItems="center" spacing={1.5}>
               <Image
                 src={logo}
                 alt="Shipnoise Logo"
                 width={38.09}
                 height={40}
-                className="object-contain"
+                style={{ objectFit: 'contain' }}
                 priority
               />
-              <h1
-                className="text-white text-[22px] font-bold sm:text-[24px]"
-                style={{ fontFamily: 'Mukta, sans-serif' }}
+              <Typography
+                component="h1"
+                sx={{
+                  color: 'white',
+                  fontSize: { xs: '22px', sm: '24px' },
+                  fontWeight: 700,
+                  fontFamily: 'Mukta, sans-serif',
+                }}
               >
                 Shipnoise
-              </h1>
-            </div>
+              </Typography>
+            </Stack>
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 gap-3">
-
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={{ xs: 1.5, sm: 2 }}
+              alignItems={{ xs: 'flex-start', sm: 'center' }}
+            >
               {/* Improve Shipnoise button */}
-              <a
+              <Link
                 href="https://mailchi.mp/7ce0cea69cd0/help-improve-shipnoise"
                 target="_blank"
                 rel="noreferrer"
-                className="flex h-[38px] items-center justify-center rounded-[100px] bg-white text-[15px] font-medium text-black transition hover:bg-slate-100 sm:w-[224px]"
-                style={{ fontFamily: 'Montserrat, sans-serif' }}
+                underline="none"
+                sx={{ width: { xs: 'auto', sm: 224 } }}
               >
-                Help improve Shipnoise!
-              </a>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  sx={{
+                    height: 38,
+                    borderRadius: '100px',
+                    bgcolor: 'white',
+                    color: 'black',
+                    textTransform: 'none',
+                    fontSize: '15px',
+                    fontWeight: 500,
+                    fontFamily: 'Montserrat, sans-serif',
+                    '&:hover': {
+                      bgcolor: '#f1f5f9',
+                    },
+                  }}
+                >
+                  Help improve Shipnoise!
+                </Button>
+              </Link>
 
               {/* Report problem button */}
-              <button
+              <Button
                 type="button"
                 onClick={openReportForm}
-                className="flex h-[38px] items-center justify-center rounded-[100px] border border-white bg-transparent text-[15px] font-medium text-white transition hover:bg-white/10 sm:w-[232px] cursor-pointer"
-                style={{ fontFamily: 'Montserrat, sans-serif' }}
+                variant="outlined"
+                sx={{
+                  height: 38,
+                  width: { xs: 'auto', sm: 232 },
+                  borderRadius: '100px',
+                  borderColor: 'white',
+                  color: 'white',
+                  textTransform: 'none',
+                  fontSize: '15px',
+                  fontWeight: 500,
+                  fontFamily: 'Montserrat, sans-serif',
+                  '&:hover': {
+                    borderColor: 'white',
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                  },
+                }}
               >
                 Report Technical Problem
-              </button>
-            </div>
-
-          </div>
-        </div>
-      </header>
+              </Button>
+            </Stack>
+          </Stack>
+        </Box>
+      </Box>
 
       {/* === Popup Form Overlay === */}
       {showReportForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-10">
-
+        <Box
+          sx={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 50,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: 'rgba(0,0,0,0.7)',
+            px: 2,
+            py: 2.5,
+          }}
+        >
           {/* Modal box */}
-          <div className="relative w-full max-w-[760px] h-full max-h-[90vh] rounded-2xl bg-white shadow-2xl overflow-hidden">
-
+          <Box
+            sx={{
+              position: 'relative',
+              width: '100%',
+              maxWidth: 760,
+              height: '100%',
+              maxHeight: '90vh',
+              borderRadius: 4,
+              bgcolor: 'white',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+              overflow: 'hidden',
+            }}
+          >
             {/* Close Button */}
-            <button
+            <Button
               type="button"
               onClick={closeReportForm}
-              className="absolute right-4 top-4 rounded-full bg-black/70 px-3 py-1 text-sm font-medium text-white cursor-pointer"
-              style={{ fontFamily: 'Montserrat, sans-serif' }}
+              variant="contained"
+              sx={{
+                position: 'absolute',
+                right: 16,
+                top: 16,
+                borderRadius: '999px',
+                bgcolor: 'rgba(0,0,0,0.7)',
+                color: 'white',
+                textTransform: 'none',
+                fontSize: '14px',
+                fontWeight: 500,
+                fontFamily: 'Montserrat, sans-serif',
+                px: 2,
+                py: 0.5,
+                minHeight: 'auto',
+                '&:hover': {
+                  bgcolor: 'rgba(0,0,0,0.75)',
+                },
+              }}
             >
               Close
-            </button>
+            </Button>
 
             {/* Embedded Tally form */}
-            <iframe
+            <Box
+              component="iframe"
               title="Report Technical Problem"
               src="https://tally.so/embed/3E4Z6X?hideTitle=1&transparentBackground=1&formEventsForwarding=1"
-              className="h-full w-full border-0"
+              sx={{ height: '100%', width: '100%', border: 0 }}
               allow="fullscreen"
             />
-          </div>
-        </div>
+          </Box>
+        </Box>
       )}
     </>
   );

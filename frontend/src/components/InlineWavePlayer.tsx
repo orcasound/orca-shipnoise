@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
+import { Box, IconButton, Stack, Typography } from '@mui/material';
 import muxjs from 'mux.js';
 import PlayButtonIcon from '@/assets/playbutton.svg';
 import { generateWaveform } from '@/lib/waveform';
@@ -256,68 +257,125 @@ const InlineWavePlayer: React.FC<InlineWavePlayerProps> = ({
     : -1;
 
   return (
-    <div className="relative w-full">
-      <div className="flex w-full flex-col gap-4 md:flex-row md:items-start md:gap-4">
-        <button
-          onClick={togglePlay}
-          disabled={isLoading}
-          className={`flex h-[64px] w-[64px] shrink-0 items-center justify-center self-start rounded-full md:h-[74px] md:w-[74px] ${isLoading ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
-        >
-          {isPlaying ? (
-            <svg
-              width={PLAY_BUTTON_SIZE}
-              height={PLAY_BUTTON_SIZE}
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-[64px] w-[64px] md:h-[74px] md:w-[74px]"
-            >
-              <circle cx="12" cy="12" r="12" fill="#013C74" />
-              <path d="M8 6h3v12H8V6zm5 0h3v12h-3V6z" fill="white" />
-            </svg>
-          ) : (
-            <Image
-              src={PlayButtonIcon}
-              alt="Play"
-              width={PLAY_BUTTON_SIZE}
-              height={PLAY_BUTTON_SIZE}
-              className="h-[64px] w-[64px] md:h-[74px] md:w-[74px]"
-            />
-          )}
-        </button>
+    <Box sx={{ position: 'relative', width: '100%' }}>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={2}
+        alignItems={{ md: 'flex-start' }}
+        sx={{ width: '100%' }}
+      >
+        <Stack alignItems="center" spacing={0.5} sx={{ alignSelf: { xs: 'flex-start', md: 'auto' } }}>
+          <IconButton
+            onClick={togglePlay}
+            disabled={isLoading}
+            sx={{
+              width: { xs: 64, md: 74 },
+              height: { xs: 64, md: 74 },
+              borderRadius: '999px',
+              opacity: isLoading ? 0.5 : 1,
+              cursor: isLoading ? 'wait' : 'pointer',
+              p: 0,
+            }}
+          >
+            {isPlaying ? (
+              <Box
+                component="svg"
+                width={PLAY_BUTTON_SIZE}
+                height={PLAY_BUTTON_SIZE}
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                sx={{ width: { xs: 64, md: 74 }, height: { xs: 64, md: 74 } }}
+              >
+                <circle cx="12" cy="12" r="12" fill="#013C74" />
+                <path d="M8 6h3v12H8V6zm5 0h3v12h-3V6z" fill="white" />
+              </Box>
+            ) : (
+              <Image
+                src={PlayButtonIcon}
+                alt="Play"
+                width={PLAY_BUTTON_SIZE}
+                height={PLAY_BUTTON_SIZE}
+                style={{ width: '100%', height: '100%' }}
+              />
+            )}
+          </IconButton>
+          <Typography
+            sx={{
+              pointerEvents: 'none',
+              fontSize: { xs: '14px', md: '16px' },
+              fontWeight: 400,
+              color: '#4C4C51',
+            }}
+          >
+            {isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'}
+          </Typography>
+        </Stack>
 
-        <div className="flex w-full flex-1 flex-col gap-3 md:ml-[28px] md:mt-[22px] md:max-w-[1030px]">
-          <div
-            className="flex h-12 w-full cursor-pointer items-end justify-between overflow-hidden rounded-md bg-[#E5E7EB] px-2 md:h-[52px] md:rounded-none md:px-0"
-            onClick={setProgress}
+        <Box
+          sx={{
+            width: '100%',
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.5,
+            ml: { md: '28px' },
+            mt: { md: '22px' },
+            maxWidth: { md: 1030 },
+          }}
+        >
+        {formattedDateTime && (
+          <Typography
+            sx={{
+              fontSize: { xs: '14px', md: '16px' },
+              color: '#4b5563',
+            }}
+          >
+            {formattedDateTime}
+          </Typography>
+        )}
+
+        <Box
+          onClick={setProgress}
+          sx={{
+            display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: 'space-between',
+              width: '100%',
+              height: { xs: 48, md: 52 },
+              cursor: 'pointer',
+              overflow: 'hidden',
+              borderRadius: { xs: '6px', md: 0 },
+              bgcolor: '#E5E7EB',
+              px: { xs: 1, md: 0 },
+            }}
           >
             {waveBars.map((height, idx) => (
-              <div
+              <Box
                 key={idx}
-                className={`w-1 rounded-full ${idx <= activeBarIndex ? 'bg-[#013C74]' : 'bg-gray-300'}`}
-                style={{ height: `${height}px`, minHeight: '6px' }}
+                sx={{
+                  width: 4,
+                  borderRadius: '999px',
+                  bgcolor: idx <= activeBarIndex ? '#013C74' : '#d1d5db',
+                  height: `${height}px`,
+                  minHeight: '6px',
+                }}
               />
             ))}
-          </div>
-          <div className="mt-2 flex justify-between text-xs text-gray-500">
-            <span>{formatTime(overallCurrentTime)}</span>
-            <span>{isLoading ? 'Loading...' : formatTime(estimatedTotalDuration)}</span>
-          </div>
-        </div>
-      </div>
-
-      <span className="pointer-events-none mt-2 block text-sm font-normal text-[#4C4C51] md:absolute md:left-[20px] md:top-[81px] md:mt-0 md:text-[16px]">
-        {isLoading ? 'Loading' : isPlaying ? 'Pause' : 'Play'}
-      </span>
-
-      {formattedDateTime && (
-        <div className="mt-1 text-sm text-gray-600 md:absolute md:left-[118px] md:-top-[7px] md:mt-0 md:text-[16px]">
-          {formattedDateTime}
-        </div>
-      )}
+          </Box>
+          <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
+            <Typography sx={{ fontSize: '12px', color: '#6b7280' }}>
+              {formatTime(overallCurrentTime)}
+            </Typography>
+            <Typography sx={{ fontSize: '12px', color: '#6b7280' }}>
+              {isLoading ? 'Loading...' : formatTime(estimatedTotalDuration)}
+            </Typography>
+          </Stack>
+        </Box>
+      </Stack>
 
       <audio ref={audioRef} preload="metadata" />
-    </div>
+    </Box>
   );
 };
 

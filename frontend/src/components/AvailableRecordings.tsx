@@ -2,6 +2,13 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import {
+  Box,
+  IconButton,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
 import VesselIcon from "@/assets/VesselIcon.png";
 import UpIcon from "@/assets/up.svg";
 import InlineWavePlayer from "@/components/InlineWavePlayer";
@@ -153,118 +160,142 @@ const AvailableRecordings: React.FC<AvailableRecordingsProps> = ({ recordings = 
   }
 
   return (
-    <div className="mt-6 w-full">
-      <div className="mx-auto w-full max-w-[90rem] px-4 md:px-0">
+    <Box sx={{ mt: 3, width: "100%" }}>
+      <Box sx={{ mx: "auto", width: "100%", maxWidth: "90rem", px: { xs: 2, md: 0 } }}>
         {/* Header Bar */}
-        <div className="flex w-full flex-wrap items-center bg-[#2D3147] px-4 py-6 md:h-[64px] md:flex-nowrap md:px-[25px]">
-          <Image
-            src={VesselIcon}
-            alt="Vessel"
-            width={23}
-            height={28}
-            className="mr-2 w-5 h-6"
-            priority
-          />
-          <h3 className="text-lg font-semibold text-white md:text-xl">
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: { xs: "wrap", md: "nowrap" },
+            alignItems: "center",
+            bgcolor: "#2D3147",
+            px: { xs: 2, md: "25px" },
+            py: 3,
+            height: { md: 64 },
+          }}
+        >
+          <Box sx={{ mr: 1, width: 20, height: 24, display: "flex", alignItems: "center" }}>
+            <Image
+              src={VesselIcon}
+              alt="Vessel"
+              width={23}
+              height={28}
+              style={{ width: "100%", height: "100%" }}
+              priority
+            />
+          </Box>
+          <Typography variant="h6" sx={{ color: "white", fontWeight: 600, fontSize: { xs: 18, md: 20 } }}>
             Explore Recordings of Vessel
             {vesselIdDisplay && (
               <>
                 {` ${vesselIdDisplay}`}
                 {recordingsLabel && (
-                  <span
-                    style={{
-                      fontSize: '22px',
+                  <Box
+                    component="span"
+                    sx={{
+                      fontSize: "22px",
                       fontWeight: 300,
-                      lineHeight: '28px',
-                      fontFamily: 'Montserrat, sans-serif',
+                      lineHeight: "28px",
+                      fontFamily: "Montserrat, sans-serif",
                     }}
                   >
-                    {' '}
+                    {" "}
                     {recordingsLabel}
-                  </span>
+                  </Box>
                 )}
               </>
             )}
-          </h3>
-        </div>
+          </Typography>
+        </Box>
 
         {/* Location Lists */}
-        <div className="space-y-4">
+        <Stack spacing={2}>
           {groupedLocations.map(({ label, recordings: groupedRecordings }) => {
             const isExpanded = expandedLocations.has(label);
             const hasRecordings = groupedRecordings.length > 0;
             const countLabel = groupedRecordings.length;
 
-            // Skip rendering locations with 0 recordings entirely if desired, 
-            // but your design seems to keep them visible (via preferred list).
-            // If preferred list items have 0 recordings, we might want to hide them?
-            // Currently keeping logic to show headers even if empty for preferred locations.
-
             return (
-              <div key={label} className="w-full overflow-hidden bg-[#E5E7EB]">
+              <Paper
+                key={label}
+                square
+                elevation={0}
+                sx={{ width: "100%", overflow: "hidden", bgcolor: "#E5E7EB", boxShadow: "none" }}
+              >
                 {/* Accordion Header */}
-                <div className="flex flex-col gap-2 px-4 py-3 md:h-[46px] md:flex-row md:items-center md:justify-between md:px-[25px]">
-                  <div className="text-left text-[14px] font-normal text-gray-800">
-                    <button
-                      className="cursor-pointer hover:underline"
-                      style={{
-                        color: '#111827',
-                        fontSize: '22px',
-                        fontWeight: 600,
-                        lineHeight: '28px',
-                        fontFamily: 'Montserrat, sans-serif',
-                      }}
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={{ xs: 1, md: 2 }}
+                  alignItems={{ md: "center" }}
+                  justifyContent={{ md: "space-between" }}
+                  sx={{ px: { xs: 2, md: "25px" }, py: 1.5, height: { md: 46 } }}
+                >
+                  <Typography sx={{ textAlign: "left", color: "#111827", fontSize: "22px", fontWeight: 600, lineHeight: "28px", fontFamily: "Montserrat, sans-serif" }}>
+                    <Box
+                      component="button"
                       onClick={() => openHydrophoneLocation(label)}
+                      sx={{
+                        cursor: "pointer",
+                        border: "none",
+                        background: "transparent",
+                        padding: 0,
+                        color: "inherit",
+                        font: "inherit",
+                        textDecoration: "none",
+                        "&:hover": { textDecoration: "underline" },
+                      }}
                     >
                       {label}
-                    </button>{' '}
-                    <span
-                      style={{
-                        fontSize: '22px',
+                    </Box>{" "}
+                    <Box
+                      component="span"
+                      sx={{
+                        fontSize: "22px",
                         fontWeight: 300,
-                        lineHeight: '28px',
-                        fontFamily: 'Montserrat, sans-serif',
+                        lineHeight: "28px",
+                        fontFamily: "Montserrat, sans-serif",
                       }}
                     >
-                      ({countLabel} recording{countLabel === 1 ? '' : 's'})
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-end">
+                      ({countLabel} recording{countLabel === 1 ? "" : "s"})
+                    </Box>
+                  </Typography>
+                  <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
                     {hasRecordings ? (
-                      <button
-                        type="button"
+                      <IconButton
                         onClick={() => handleToggleLocation(label, hasRecordings)}
-                        className={`flex h-5 w-5 items-center justify-center transform transition-transform ${
-                          hasRecordings ? 'cursor-pointer' : 'cursor-default opacity-40'
-                        } ${isExpanded ? 'rotate-0' : 'rotate-180'}`}
                         aria-expanded={isExpanded}
                         aria-label={isExpanded ? `Collapse ${label}` : `Expand ${label}`}
+                        sx={{
+                          width: 24,
+                          height: 24,
+                          p: 0,
+                          transform: isExpanded ? "rotate(0deg)" : "rotate(180deg)",
+                          transition: "transform 0.2s ease",
+                        }}
                       >
-                        <Image
-                          src={UpIcon}
-                          alt=""
-                          width={20}
-                          height={20}
-                          className="h-full w-full"
-                        />
-                      </button>
+                        <Image src={UpIcon} alt="" width={20} height={20} style={{ width: "100%", height: "100%" }} />
+                      </IconButton>
                     ) : (
-                      <div className="h-5 w-5" aria-hidden />
+                      <Box sx={{ width: 20, height: 20 }} aria-hidden />
                     )}
-                  </div>
-                </div>
+                  </Box>
+                </Stack>
 
                 {/* Accordion Content */}
                 {isExpanded && hasRecordings && (
-                  <div className="bg-white">
+                  <Box sx={{ bgcolor: "white" }}>
                     {groupedRecordings.map((rec, idx) => {
-                      // KEY OPTIMIZATION: Use ID if available, fallback to URL+Index
-                      const uniqueKey = rec.id ?? `${rec.audioUrls?.[0] ?? 'missing'}-${idx}`;
-                      
+                      const uniqueKey = rec.id ?? `${rec.audioUrls?.[0] ?? "missing"}-${idx}`;
+
                       return (
-                        <div
+                        <Box
                           key={uniqueKey}
-                          className="w-full border-b border-black px-4 py-5 md:px-[45px] md:py-[25px]"
+                          sx={{
+                            width: "100%",
+                            borderBottom: "1px solid black",
+                            px: { xs: 2, md: "45px" },
+                            py: { xs: 2.5, md: "25px" },
+                          }}
                         >
                           <InlineWavePlayer
                             audioUrls={rec.audioUrls}
@@ -272,17 +303,17 @@ const AvailableRecordings: React.FC<AvailableRecordingsProps> = ({ recordings = 
                             time={rec.time}
                             timestamp={rec.timestamp}
                           />
-                        </div>
+                        </Box>
                       );
                     })}
-                  </div>
+                  </Box>
                 )}
-              </div>
+              </Paper>
             );
           })}
-        </div>
-      </div>
-    </div>
+        </Stack>
+      </Box>
+    </Box>
   );
 };
 
