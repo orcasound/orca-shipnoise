@@ -186,6 +186,15 @@ def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
 
             # 3. Confidence Check
             rms, mean_db, max_db = rms_db(loud_wav)
+            # 🚫 HARD SILENCE GUARD (Hydrophone failure / mute day)
+
+            if mean_db < -90:
+
+                vprint(verbose, f"   ❌ Silent audio detected (mean_db={mean_db:.1f} dB). Skipping.")
+
+                continue
+
+
             ratio, entropy, delta_L, ship_index = compute_lowfreq_ratio(loud_wav)
             conf = classify_confidence(ratio, entropy, delta_L, site_name)
 
