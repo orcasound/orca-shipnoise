@@ -8,8 +8,6 @@ load_dotenv()
 # ============ CONFIG ============
 ORCASITE_GRAPHQL = "https://live.orcasound.net/graphql"
 AISSTREAM_WS = "wss://stream.aisstream.io/v0/stream"
-
-# Max retries for WebSocket connection
 MAX_RETRIES = 5
 
 # ============ ENV ============
@@ -20,7 +18,7 @@ if not API_KEY:
 # ============ CLI ============
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--site", required=True, help="Site slug, e.g. bush-point")
+    p.add_argument("--sites", required=True, nargs="+", help="Site slugs, e.g. bush-point orcasound-lab")
     p.add_argument(
         "--duration",
         type=int,
@@ -36,7 +34,7 @@ def parse_args():
     return p.parse_args()
 
 # ============ ORCASITE ============
-def get_site_latlon(site_slug: str):
+def get_all_site_locations(site_slugs: list):
     query = """
     query {
       feeds {
@@ -51,15 +49,19 @@ def get_site_latlon(site_slug: str):
     if "errors" in data:
         raise RuntimeError(data["errors"])
 
+    locations = {}
     for feed in data["data"]["feeds"]:
-        if feed["slug"] == site_slug:
+        if feed["slug"] in site_slugs:
             lp = feed["location_point"]
             if isinstance(lp, str):
                 lp = json.loads(lp)
             lon, lat = lp["coordinates"]
-            return lat, lon
+            locations[feed["slug"]] = (lat, lon)
 
-    raise ValueError(f"Unknown site slug: {site_slug}")
+    missing = set(site_slugs) - set(locations.keys())
+    if missing:
+        raise ValueError(f"Unknown site slugs: {missing}")
+    return locations
 
 # ============ PATHS ============
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -81,93 +83,126 @@ def bbox_from_radius_km(lat, lon, r_km):
     dlon = r_km / (111.0 * max(0.1, math.cos(math.radians(lat))))
     return [[lat - dlat, lon - dlon], [lat + dlat, lon + dlon]]
 
+def point_in_bbox(lat, lon, bbox):
+    return (bbox[0][0] <= lat <= bbox[1][0] and
+            bbox[0][1] <= lon <= bbox[1][1])
+
 # ============ COLLECT ============
-async def collect_once(
-    out_path: Path,
-    lat: float,
-    lon: float,
-    site: str,
-    duration_secs: int,
-    radius_km: float,
-):
-    bbox = bbox_from_radius_km(lat, lon, radius_km)
-
-    sub_msg = {
-        "APIKey": API_KEY,
-        "BoundingBoxes": [bbox],
-        "FilterMessageTypes": ["PositionReport", "ShipStaticData"],
-    }
-
-    print(f"Connecting... {AISSTREAM_WS}  BBOX={bbox}")
+async def collect_once(sites_info: dict, duration_secs: int, radius_km: float):
+    """
+    sites_info: {site_slug: (lat, lon)}
+    Single WebSocket connection subscribing to all site bboxes at once.
+    Messages are routed to the correct site output file by position.
+    """
     start = datetime.now(timezone.utc)
     deadline = start + timedelta(seconds=duration_secs)
 
-    async with websockets.connect(
-        AISSTREAM_WS,
-        open_timeout=60,
-        ping_timeout=120,
-        close_timeout=10,
-        max_size=2**20,
-    ) as ws:
-        await ws.send(json.dumps(sub_msg))
-        print("Subscription sent. Waiting for data...")
+    # Build per-site metadata
+    site_data = {}
+    all_bboxes = []
+    for site, (lat, lon) in sites_info.items():
+        bbox = bbox_from_radius_km(lat, lon, radius_km)
+        out_path = make_out_file(get_base_dir(site))
+        site_data[site] = {
+            "lat": lat, "lon": lon,
+            "bbox": bbox,
+            "out_path": out_path,
+            "count": 0,
+        }
+        all_bboxes.append(bbox)
 
-        cnt = 0
-        with open(out_path, "w", encoding="utf-8") as f:
-            meta = {
-                "_meta": {
-                    "site": site,
-                    "latitude": lat,
-                    "longitude": lon,
-                    "radius_km": radius_km,
-                    "started_at": start.isoformat(),
-                }
-            }
-            f.write(json.dumps(meta) + "\n")
+    sub_msg = {
+        "APIKey": API_KEY,
+        "BoundingBoxes": all_bboxes,
+        "FilterMessageTypes": ["PositionReport", "ShipStaticData"],
+    }
 
+    print(f"Connecting... {AISSTREAM_WS}  sites={list(sites_info.keys())}")
+
+    # Open all output files and write metadata headers
+    file_handles = {}
+    for site, info in site_data.items():
+        f = open(info["out_path"], "w", encoding="utf-8")
+        f.write(json.dumps({"_meta": {
+            "site": site,
+            "latitude": info["lat"],
+            "longitude": info["lon"],
+            "radius_km": radius_km,
+            "started_at": start.isoformat(),
+        }}) + "\n")
+        file_handles[site] = f
+
+    try:
+        async with websockets.connect(
+            AISSTREAM_WS,
+            open_timeout=60,
+            ping_timeout=120,
+            close_timeout=10,
+            max_size=2**20,
+        ) as ws:
+            await ws.send(json.dumps(sub_msg))
+            print("Subscription sent. Waiting for data...")
+
+            total_cnt = 0
             async for msg in ws:
                 if datetime.now(timezone.utc) >= deadline:
                     break
                 if isinstance(msg, (bytes, bytearray)):
                     msg = msg.decode("utf-8", errors="ignore")
-                f.write(msg.strip() + "\n")
-                cnt += 1
-                if cnt % 200 == 0:
-                    print(f"[{datetime.now(timezone.utc).isoformat()}] received {cnt} messages...")
 
-        print(f"Saved: {out_path}  (messages={cnt})")
+                # Route message to matching site(s) by position
+                try:
+                    parsed = json.loads(msg)
+                    meta = parsed.get("MetaData", {})
+                    msg_lat = meta.get("latitude") or meta.get("Latitude")
+                    msg_lon = meta.get("longitude") or meta.get("Longitude")
+                except (json.JSONDecodeError, AttributeError):
+                    msg_lat = msg_lon = None
+
+                if msg_lat is not None and msg_lon is not None:
+                    for site, info in site_data.items():
+                        if point_in_bbox(msg_lat, msg_lon, info["bbox"]):
+                            file_handles[site].write(msg.strip() + "\n")
+                            site_data[site]["count"] += 1
+
+                total_cnt += 1
+                if total_cnt % 200 == 0:
+                    counts = {s: site_data[s]["count"] for s in site_data}
+                    print(f"[{datetime.now(timezone.utc).isoformat()}] received {total_cnt} total | per-site: {counts}")
+    finally:
+        for site, f in file_handles.items():
+            f.close()
+            print(f"Saved: {site_data[site]['out_path']}  (messages={site_data[site]['count']})")
 
 # ============ MAIN ============
 async def main():
     args = parse_args()
-    site = args.site
+    sites = args.sites
     duration = max(1, int(args.duration))
     radius = float(args.radius)
 
-    lat, lon = get_site_latlon(site)
-    print(f"Site {site}: lat={lat}, lon={lon}")
-
-    base_dir = get_base_dir(site)
+    print(f"Fetching locations for: {sites}")
+    sites_info = get_all_site_locations(sites)
+    for site, (lat, lon) in sites_info.items():
+        print(f"  {site}: lat={lat}, lon={lon}")
 
     for attempt in range(1, MAX_RETRIES + 1):
-        out_file = make_out_file(base_dir)
         try:
-            print(f"[{site}] Attempt {attempt}/{MAX_RETRIES} (duration={duration}s, radius={radius}km)")
-            await collect_once(out_file, lat, lon, site, duration, radius)
-            return  # Success
+            print(f"[multi-site] Attempt {attempt}/{MAX_RETRIES} (duration={duration}s, radius={radius}km)")
+            await collect_once(sites_info, duration, radius)
+            return
         except TimeoutError as e:
-            # Exponential backoff with cap, e.g. 30s, 60s, 120s, 120s, 120s
             wait = min(30 * (2 ** (attempt - 1)), 120)
-            print(f"[{site}] Timeout on attempt {attempt}: {e}")
-            print(f"[{site}] Waiting {wait}s before retry...")
+            print(f"[multi-site] Timeout on attempt {attempt}: {e}")
+            print(f"[multi-site] Waiting {wait}s before retry...")
             await asyncio.sleep(wait)
         except Exception as e:
             wait = min(30 * (2 ** (attempt - 1)), 120)
-            print(f"[{site}] Error on attempt {attempt}: {repr(e)}")
-            print(f"[{site}] Waiting {wait}s before retry...")
+            print(f"[multi-site] Error on attempt {attempt}: {repr(e)}")
+            print(f"[multi-site] Waiting {wait}s before retry...")
             await asyncio.sleep(wait)
 
-    print(f"[{site}] All {MAX_RETRIES} attempts failed. Exiting.")
+    print(f"[multi-site] All {MAX_RETRIES} attempts failed. Exiting.")
 
 if __name__ == "__main__":
     asyncio.run(main())
