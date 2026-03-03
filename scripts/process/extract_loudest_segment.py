@@ -255,7 +255,7 @@ def main():
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
-    base_dir = "/home/ubuntu/aisstream/Sites"
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../Sites"))
     sites = {
         "bush_point": "rpi_bush_point",
         "orcasound_lab": "rpi_orcasound_lab",
