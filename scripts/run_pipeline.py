@@ -8,9 +8,10 @@ Runs continuously on fly.io as a worker process:
   3. Loops back to collection
 
 Environment variables:
-  AISSTREAM_API_KEY  — required for AIS collection
-  DATABASE_URL       — required for writing detections to Neon
-  AIS_DURATION_SECS  — collection window per cycle (default: 3600)
+  AISSTREAM_API_KEY_PRIMARY    — API key for first group of sites
+  AISSTREAM_API_KEY_SECONDARY  — API key for second group of sites
+  DATABASE_URL                 — required for writing detections to Neon
+  AIS_DURATION_SECS            — collection window per cycle (default: 3600)
 """
 
 import os
@@ -26,8 +27,12 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPTS_DIR.parent
 SITES_DIR = PROJECT_ROOT / "Sites"
 
-# Site slugs used by ais_collect.py (hyphenated)
-COLLECT_SITES = ["bush-point", "orcasound-lab", "port-townsend", "sunset-bay"]
+# API key → site mapping
+# Each key handles 2 sites (AISstream limit: max 3 per key)
+SITE_KEY_MAP = {
+    "PRIMARY": ["bush-point", "orcasound-lab"],
+    "SECONDARY": ["port-townsend", "sunset-bay"],
+}
 
 # Site keys used by processing scripts (underscored)
 PROCESS_SITES = ["bush_point", "orcasound_lab", "port_townsend", "sunset_bay"]
@@ -49,7 +54,20 @@ signal.signal(signal.SIGTERM, handle_signal)
 signal.signal(signal.SIGINT, handle_signal)
 
 
-def run_cmd(args, label="", cwd=None):
+def get_api_keys():
+    """Load API keys from environment."""
+    keys = {}
+    for label in ("PRIMARY", "SECONDARY"):
+        key = os.getenv(f"AISSTREAM_API_KEY_{label}")
+        if key:
+            keys[label] = key
+            print(f"[orchestrator] Loaded AISSTREAM_API_KEY_{label}")
+        else:
+            print(f"[orchestrator] WARNING: AISSTREAM_API_KEY_{label} not set, skipping its sites")
+    return keys
+
+
+def run_cmd(args, label="", cwd=None, env=None):
     """Run a subprocess and stream its output. Returns True on success."""
     print(f"\n{'='*60}")
     print(f"[orchestrator] {label}")
@@ -60,6 +78,7 @@ def run_cmd(args, label="", cwd=None):
         result = subprocess.run(
             args,
             cwd=cwd or str(PROJECT_ROOT),
+            env=env,
             timeout=7200,  # 2-hour hard timeout
         )
         if result.returncode != 0:
@@ -74,18 +93,28 @@ def run_cmd(args, label="", cwd=None):
         return False
 
 
-def collect_ais():
-    """Collect AIS data for all sites in parallel."""
+def collect_ais(api_keys):
+    """Collect AIS data for all sites in parallel, using the correct API key per site."""
     print("\n[orchestrator] === PHASE 1: AIS COLLECTION ===")
 
     procs = []
-    for site in COLLECT_SITES:
-        if _shutdown:
-            break
-        cmd = [sys.executable, str(SCRIPTS_DIR / "collect" / "ais_collect.py"), "--site", site]
-        print(f"[orchestrator] Starting collection for {site}")
-        p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT))
-        procs.append((site, p))
+    for label, sites in SITE_KEY_MAP.items():
+        api_key = api_keys.get(label)
+        if not api_key:
+            print(f"[orchestrator] Skipping {label} sites (no API key)")
+            continue
+
+        # Build env with the correct AISSTREAM_API_KEY for this group
+        child_env = os.environ.copy()
+        child_env["AISSTREAM_API_KEY"] = api_key
+
+        for site in sites:
+            if _shutdown:
+                break
+            cmd = [sys.executable, str(SCRIPTS_DIR / "collect" / "ais_collect.py"), "--site", site]
+            print(f"[orchestrator] Starting collection for {site} (key={label})")
+            p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), env=child_env)
+            procs.append((site, p))
 
     # Wait for all collectors to finish
     for site, p in procs:
@@ -162,6 +191,12 @@ def main():
     print(f"[orchestrator] PROJECT_ROOT: {PROJECT_ROOT}")
     print(f"[orchestrator] SITES_DIR: {SITES_DIR}")
 
+    # Load API keys
+    api_keys = get_api_keys()
+    if not api_keys:
+        print("[orchestrator] ERROR: No API keys configured. Set AISSTREAM_API_KEY_PRIMARY and/or AISSTREAM_API_KEY_SECONDARY")
+        sys.exit(1)
+
     # Ensure Sites directory exists
     SITES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -174,7 +209,7 @@ def main():
         print(f"{'#'*60}")
 
         # Phase 1: Collect AIS data (runs for AIS_DURATION_SECS, default 1 hour)
-        collect_ais()
+        collect_ais(api_keys)
 
         if _shutdown:
             break
