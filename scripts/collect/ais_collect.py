@@ -12,6 +12,9 @@ AISSTREAM_WS = "wss://stream.aisstream.io/v0/stream"
 # Fixed collection radius (km)
 DEFAULT_RADIUS_KM = 30.0
 
+# Max retries for WebSocket connection
+MAX_RETRIES = 5
+
 # ============ ENV ============
 API_KEY = os.getenv("AISSTREAM_API_KEY")
 if not API_KEY:
@@ -97,7 +100,13 @@ async def collect_once(out_path: Path, lat: float, lon: float, site: str):
     start = datetime.now(timezone.utc)
     deadline = start + timedelta(seconds=DURATION_SECS)
 
-    async with websockets.connect(AISSTREAM_WS, open_timeout=30, ping_timeout=60) as ws:
+    async with websockets.connect(
+        AISSTREAM_WS,
+        open_timeout=60,
+        ping_timeout=120,
+        close_timeout=10,
+        max_size=2**20,
+    ) as ws:
         await ws.send(json.dumps(sub_msg))
         print("Subscription sent. Waiting for data...")
 
@@ -136,17 +145,24 @@ async def main():
 
     base_dir = get_base_dir(site)
 
-    out_file = make_out_file(base_dir)
-
-    try:
-        await collect_once(out_file, lat, lon, site)
-    except Exception as e:
-        print("Error:", repr(e))
-        print("Retrying in 5s...")
-        await asyncio.sleep(5)
-
+    for attempt in range(1, MAX_RETRIES + 1):
         out_file = make_out_file(base_dir)
-        await collect_once(out_file, lat, lon, site)
+        try:
+            print(f"[{site}] Attempt {attempt}/{MAX_RETRIES}")
+            await collect_once(out_file, lat, lon, site)
+            return  # Success
+        except TimeoutError as e:
+            wait = min(30 * attempt, 120)  # 30s, 60s, 90s, 120s, 120s
+            print(f"[{site}] Timeout on attempt {attempt}: {e}")
+            print(f"[{site}] Waiting {wait}s before retry...")
+            await asyncio.sleep(wait)
+        except Exception as e:
+            wait = min(30 * attempt, 120)
+            print(f"[{site}] Error on attempt {attempt}: {repr(e)}")
+            print(f"[{site}] Waiting {wait}s before retry...")
+            await asyncio.sleep(wait)
+
+    print(f"[{site}] All {MAX_RETRIES} attempts failed. Exiting.")
 
 if __name__ == "__main__":
     asyncio.run(main())
