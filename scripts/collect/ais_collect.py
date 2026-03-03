@@ -97,7 +97,7 @@ async def collect_once(out_path: Path, lat: float, lon: float, site: str):
     start = datetime.now(timezone.utc)
     deadline = start + timedelta(seconds=DURATION_SECS)
 
-    async with websockets.connect(AISSTREAM_WS) as ws:
+    async with websockets.connect(AISSTREAM_WS, open_timeout=30, ping_timeout=60) as ws:
         await ws.send(json.dumps(sub_msg))
         print("Subscription sent. Waiting for data...")
 

@@ -17,6 +17,7 @@ Environment variables:
 import os
 import sys
 import subprocess
+import shutil
 import time
 import signal
 from datetime import datetime, timezone, timedelta
@@ -186,6 +187,25 @@ def process_pipeline(target_date_str):
     )
 
 
+def cleanup_sites_data():
+    """Remove intermediate files (JSONL, CSV, timestamps) after processing to prevent disk overflow."""
+    print("\n[orchestrator] === PHASE 4: CLEANUP ===")
+    if not SITES_DIR.exists():
+        return
+
+    total_freed = 0
+    for item in SITES_DIR.iterdir():
+        if item.is_dir():
+            size = sum(f.stat().st_size for f in item.rglob("*") if f.is_file())
+            shutil.rmtree(item)
+            total_freed += size
+            print(f"[orchestrator] Removed {item.name} ({size / 1024 / 1024:.1f} MB)")
+
+    # Recreate empty Sites dir
+    SITES_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"[orchestrator] Cleanup complete, freed {total_freed / 1024 / 1024:.1f} MB")
+
+
 def main():
     print("[orchestrator] Shipnoise AIS Pipeline starting")
     print(f"[orchestrator] PROJECT_ROOT: {PROJECT_ROOT}")
@@ -228,6 +248,9 @@ def main():
             print(f"[orchestrator] Marked {yesterday} as processed")
         else:
             print(f"[orchestrator] Date {yesterday} already processed, skipping pipeline")
+
+        # Phase 4: Clean up intermediate data to prevent disk from filling up
+        cleanup_sites_data()
 
         cycle_end = datetime.now(timezone.utc)
         elapsed = (cycle_end - cycle_start).total_seconds()
