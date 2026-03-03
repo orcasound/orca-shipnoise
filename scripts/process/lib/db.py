@@ -3,8 +3,8 @@ import json
 import psycopg
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv("/home/ubuntu/aisstream/Scripts/process/.env")
+# Load environment variables (from .env file if present, otherwise from environment)
+load_dotenv()
 DB_URL = os.environ.get("DATABASE_URL")
 
 def get_conn():

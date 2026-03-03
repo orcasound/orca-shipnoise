@@ -1,11 +1,12 @@
-fastapi
-uvicorn[standard]
 python-dotenv
 sqlalchemy
 psycopg2-binary
+psycopg[binary]
 pandas
 numpy
 boto3
 botocore
 scipy
 soundfile
+websockets
+requests
