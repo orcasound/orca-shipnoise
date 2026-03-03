@@ -8,7 +8,7 @@ primary_region = 'sjc'
   dockerfile = "Dockerfile"
 
 [processes]
-  worker = "python scripts/run_pipeline.py"
+  worker = "python -u scripts/run_pipeline.py"
 
 [[vm]]
   memory = '1gb'
