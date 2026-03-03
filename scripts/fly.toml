@@ -5,7 +5,7 @@ app = 'orca-shipnoise-worker'
 primary_region = 'sjc'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "scripts/Dockerfile"
 
 [processes]
   worker = "python -u scripts/run_pipeline.py"
