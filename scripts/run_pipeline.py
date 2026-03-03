@@ -112,6 +112,14 @@ def collect_ais(api_keys):
     Runs for AIS_DURATION_SECS (default 1 hour), then returns."""
     print("\n[orchestrator] === AIS COLLECTION ===")
 
+    duration_secs = os.getenv("AIS_DURATION_SECS", "3600")
+    try:
+        duration_int = max(1, int(duration_secs))
+    except ValueError:
+        print(f"[orchestrator] Invalid AIS_DURATION_SECS={duration_secs!r}; falling back to 3600")
+        duration_secs = "3600"
+        duration_int = 3600
+
     procs = []
     for label, sites in SITE_KEY_MAP.items():
         api_key = api_keys.get(label)
@@ -126,15 +134,25 @@ def collect_ais(api_keys):
         for site in sites:
             if _shutdown:
                 break
-            cmd = [sys.executable, str(SCRIPTS_DIR / "collect" / "ais_collect.py"), "--site", site]
+            cmd = [
+                sys.executable,
+                str(SCRIPTS_DIR / "collect" / "ais_collect.py"),
+                "--site",
+                site,
+                "--duration",
+                duration_secs,
+            ]
             print(f"[orchestrator] Starting collection for {site} (key={label})")
             p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), env=child_env)
             procs.append((site, p))
+            # Stagger startup to avoid connection spikes against AIS WebSocket
+            time.sleep(5)
 
     # Wait for all collectors to finish
     for site, p in procs:
         try:
-            p.wait(timeout=7200)
+            # Allow collectors to run for the requested duration plus a small buffer
+            p.wait(timeout=duration_int + 60)
             print(f"[orchestrator] Collection done for {site} (exit={p.returncode})")
         except subprocess.TimeoutExpired:
             print(f"[orchestrator] Collection timeout for {site}, terminating")

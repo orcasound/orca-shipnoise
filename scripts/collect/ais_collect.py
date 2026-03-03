@@ -9,9 +9,6 @@ load_dotenv()
 ORCASITE_GRAPHQL = "https://live.orcasound.net/graphql"
 AISSTREAM_WS = "wss://stream.aisstream.io/v0/stream"
 
-# Fixed collection radius (km)
-DEFAULT_RADIUS_KM = 30.0
-
 # Max retries for WebSocket connection
 MAX_RETRIES = 5
 
@@ -24,6 +21,18 @@ if not API_KEY:
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--site", required=True, help="Site slug, e.g. bush-point")
+    p.add_argument(
+        "--duration",
+        type=int,
+        default=3600,
+        help="Collection duration in seconds (default: 3600)",
+    )
+    p.add_argument(
+        "--radius",
+        type=float,
+        default=30.0,
+        help="Collection radius in km (default: 30.0)",
+    )
     return p.parse_args()
 
 # ============ ORCASITE ============
@@ -52,19 +61,6 @@ def get_site_latlon(site_slug: str):
 
     raise ValueError(f"Unknown site slug: {site_slug}")
 
-# ============ DURATION ============
-def resolve_duration(default: int = 3600) -> int:
-    raw = os.getenv("AIS_DURATION_SECS", "")
-    if not raw:
-        return default
-    try:
-        return max(1, int(raw))
-    except ValueError:
-        print(f"Invalid AIS_DURATION_SECS={raw!r}; falling back to {default}")
-        return default
-
-DURATION_SECS = resolve_duration()
-
 # ============ PATHS ============
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -86,9 +82,15 @@ def bbox_from_radius_km(lat, lon, r_km):
     return [[lat - dlat, lon - dlon], [lat + dlat, lon + dlon]]
 
 # ============ COLLECT ============
-async def collect_once(out_path: Path, lat: float, lon: float, site: str):
-    r_km = DEFAULT_RADIUS_KM
-    bbox = bbox_from_radius_km(lat, lon, r_km)
+async def collect_once(
+    out_path: Path,
+    lat: float,
+    lon: float,
+    site: str,
+    duration_secs: int,
+    radius_km: float,
+):
+    bbox = bbox_from_radius_km(lat, lon, radius_km)
 
     sub_msg = {
         "APIKey": API_KEY,
@@ -98,7 +100,7 @@ async def collect_once(out_path: Path, lat: float, lon: float, site: str):
 
     print(f"Connecting... {AISSTREAM_WS}  BBOX={bbox}")
     start = datetime.now(timezone.utc)
-    deadline = start + timedelta(seconds=DURATION_SECS)
+    deadline = start + timedelta(seconds=duration_secs)
 
     async with websockets.connect(
         AISSTREAM_WS,
@@ -117,7 +119,7 @@ async def collect_once(out_path: Path, lat: float, lon: float, site: str):
                     "site": site,
                     "latitude": lat,
                     "longitude": lon,
-                    "radius_km": r_km,
+                    "radius_km": radius_km,
                     "started_at": start.isoformat(),
                 }
             }
@@ -139,6 +141,8 @@ async def collect_once(out_path: Path, lat: float, lon: float, site: str):
 async def main():
     args = parse_args()
     site = args.site
+    duration = max(1, int(args.duration))
+    radius = float(args.radius)
 
     lat, lon = get_site_latlon(site)
     print(f"Site {site}: lat={lat}, lon={lon}")
@@ -148,16 +152,17 @@ async def main():
     for attempt in range(1, MAX_RETRIES + 1):
         out_file = make_out_file(base_dir)
         try:
-            print(f"[{site}] Attempt {attempt}/{MAX_RETRIES}")
-            await collect_once(out_file, lat, lon, site)
+            print(f"[{site}] Attempt {attempt}/{MAX_RETRIES} (duration={duration}s, radius={radius}km)")
+            await collect_once(out_file, lat, lon, site, duration, radius)
             return  # Success
         except TimeoutError as e:
-            wait = min(30 * attempt, 120)  # 30s, 60s, 90s, 120s, 120s
+            # Exponential backoff with cap, e.g. 30s, 60s, 120s, 120s, 120s
+            wait = min(30 * (2 ** (attempt - 1)), 120)
             print(f"[{site}] Timeout on attempt {attempt}: {e}")
             print(f"[{site}] Waiting {wait}s before retry...")
             await asyncio.sleep(wait)
         except Exception as e:
-            wait = min(30 * attempt, 120)
+            wait = min(30 * (2 ** (attempt - 1)), 120)
             print(f"[{site}] Error on attempt {attempt}: {repr(e)}")
             print(f"[{site}] Waiting {wait}s before retry...")
             await asyncio.sleep(wait)
