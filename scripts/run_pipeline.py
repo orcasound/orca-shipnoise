@@ -16,11 +16,13 @@ Why 10:00 UTC?
   - AIS data for the UTC day is also fully collected by then
 
 Environment variables:
-  AISSTREAM_API_KEY_PRIMARY    — API key for first group of sites
-  AISSTREAM_API_KEY_SECONDARY  — API key for second group of sites
-  DATABASE_URL                 — required for writing detections to Neon
-  AIS_DURATION_SECS            — collection window per chunk (default: 3600)
-  PROCESS_HOUR_UTC             — hour (0-23) to trigger daily processing (default: 10)
+  AISSTREAM_API_KEY_BUSH_POINT     — API key for bush-point
+  AISSTREAM_API_KEY_ORCASOUND_LAB  — API key for orcasound-lab
+  AISSTREAM_API_KEY_PORT_TOWNSEND  — API key for port-townsend
+  AISSTREAM_API_KEY_SUNSET_BAY     — API key for sunset-bay
+  DATABASE_URL                     — required for writing detections to Neon
+  AIS_DURATION_SECS                — collection window per chunk (default: 3600)
+  PROCESS_HOUR_UTC                 — hour (0-23) to trigger daily processing (default: 10)
 """
 
 import os
@@ -41,11 +43,12 @@ SITES_DIR = PROJECT_ROOT / "Sites"
 # 10:00 UTC = 2:00 AM PST — ensures full day of audio + AIS data is available
 PROCESS_HOUR_UTC = int(os.getenv("PROCESS_HOUR_UTC", "10"))
 
-# API key → site mapping
-# Each key handles 2 sites (AISstream limit: max 3 per key)
+# Site → env var name mapping (one dedicated API key per site)
 SITE_KEY_MAP = {
-    "PRIMARY": ["bush-point", "orcasound-lab"],
-    "SECONDARY": ["port-townsend", "sunset-bay"],
+    "bush-point":    "AISSTREAM_API_KEY_BUSH_POINT",
+    "orcasound-lab": "AISSTREAM_API_KEY_ORCASOUND_LAB",
+    "port-townsend": "AISSTREAM_API_KEY_PORT_TOWNSEND",
+    "sunset-bay":    "AISSTREAM_API_KEY_SUNSET_BAY",
 }
 
 # Site keys used by processing scripts (underscored)
@@ -69,15 +72,15 @@ signal.signal(signal.SIGINT, handle_signal)
 
 
 def get_api_keys():
-    """Load API keys from environment."""
+    """Load API keys from environment, one per site."""
     keys = {}
-    for label in ("PRIMARY", "SECONDARY"):
-        key = os.getenv(f"AISSTREAM_API_KEY_{label}")
+    for site, env_var in SITE_KEY_MAP.items():
+        key = os.getenv(env_var)
         if key:
-            keys[label] = key
-            print(f"[orchestrator] Loaded AISSTREAM_API_KEY_{label}")
+            keys[site] = key
+            print(f"[orchestrator] Loaded {env_var} for {site}")
         else:
-            print(f"[orchestrator] WARNING: AISSTREAM_API_KEY_{label} not set, skipping its sites")
+            print(f"[orchestrator] WARNING: {env_var} not set, skipping {site}")
     return keys
 
 
@@ -121,32 +124,27 @@ def collect_ais(api_keys):
         duration_int = 3600
 
     procs = []
-    for label, sites in SITE_KEY_MAP.items():
-        api_key = api_keys.get(label)
-        if not api_key:
-            print(f"[orchestrator] Skipping {label} sites (no API key)")
-            continue
+    for site, api_key in api_keys.items():
+        if _shutdown:
+            break
 
-        # Build env with the correct AISSTREAM_API_KEY for this group
+        # Each site gets its own dedicated API key
         child_env = os.environ.copy()
         child_env["AISSTREAM_API_KEY"] = api_key
 
-        for site in sites:
-            if _shutdown:
-                break
-            cmd = [
-                sys.executable,
-                str(SCRIPTS_DIR / "collect" / "ais_collect.py"),
-                "--site",
-                site,
-                "--duration",
-                duration_secs,
-            ]
-            print(f"[orchestrator] Starting collection for {site} (key={label})")
-            p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), env=child_env)
-            procs.append((site, p))
-            # Stagger startup to avoid connection spikes against AIS WebSocket
-            time.sleep(5)
+        cmd = [
+            sys.executable,
+            str(SCRIPTS_DIR / "collect" / "ais_collect.py"),
+            "--site",
+            site,
+            "--duration",
+            duration_secs,
+        ]
+        print(f"[orchestrator] Starting collection for {site}")
+        p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), env=child_env)
+        procs.append((site, p))
+        # Stagger startup to avoid connection spikes against AIS WebSocket
+        time.sleep(5)
 
     # Wait for all collectors to finish
     for site, p in procs:
@@ -279,7 +277,7 @@ def main():
     # Load API keys
     api_keys = get_api_keys()
     if not api_keys:
-        print("[orchestrator] ERROR: No API keys configured. Set AISSTREAM_API_KEY_PRIMARY and/or AISSTREAM_API_KEY_SECONDARY")
+        print("[orchestrator] ERROR: No API keys configured. Set AISSTREAM_API_KEY_BUSH_POINT, AISSTREAM_API_KEY_ORCASOUND_LAB, etc.")
         sys.exit(1)
 
     # Ensure Sites directory exists
