@@ -2,16 +2,25 @@
 """
 Shipnoise AIS Pipeline Orchestrator
 ------------------------------------
-Runs continuously on fly.io as a worker process:
-  1. Collects AIS data for all sites in parallel (default: 1 hour per cycle)
-  2. Runs the processing pipeline on yesterday's data
-  3. Loops back to collection
+Runs continuously on fly.io as a worker process.
+
+Two independent loops:
+  1. COLLECTION: Runs AIS collection in 1-hour chunks, 24/7
+  2. PROCESSING: Once per day at ~10:00 UTC (2:00 AM PST), processes
+     the previous day's collected data against audio timestamps
+
+Why 10:00 UTC?
+  - Orcasound audio sessions are organized by PST (UTC-8)
+  - A full PST "day" ends at 08:00 UTC the next day
+  - 10:00 UTC gives a 2-hour buffer to ensure audio data is complete
+  - AIS data for the UTC day is also fully collected by then
 
 Environment variables:
   AISSTREAM_API_KEY_PRIMARY    — API key for first group of sites
   AISSTREAM_API_KEY_SECONDARY  — API key for second group of sites
   DATABASE_URL                 — required for writing detections to Neon
-  AIS_DURATION_SECS            — collection window per cycle (default: 3600)
+  AIS_DURATION_SECS            — collection window per chunk (default: 3600)
+  PROCESS_HOUR_UTC             — hour (0-23) to trigger daily processing (default: 10)
 """
 
 import os
@@ -27,6 +36,10 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPTS_DIR.parent
 SITES_DIR = PROJECT_ROOT / "Sites"
+
+# Hour (UTC) at which to trigger daily processing
+# 10:00 UTC = 2:00 AM PST — ensures full day of audio + AIS data is available
+PROCESS_HOUR_UTC = int(os.getenv("PROCESS_HOUR_UTC", "10"))
 
 # API key → site mapping
 # Each key handles 2 sites (AISstream limit: max 3 per key)
@@ -95,8 +108,9 @@ def run_cmd(args, label="", cwd=None, env=None):
 
 
 def collect_ais(api_keys):
-    """Collect AIS data for all sites in parallel, using the correct API key per site."""
-    print("\n[orchestrator] === PHASE 1: AIS COLLECTION ===")
+    """Collect AIS data for all sites in parallel, using the correct API key per site.
+    Runs for AIS_DURATION_SECS (default 1 hour), then returns."""
+    print("\n[orchestrator] === AIS COLLECTION ===")
 
     procs = []
     for label, sites in SITE_KEY_MAP.items():
@@ -130,7 +144,7 @@ def collect_ais(api_keys):
 
 def get_timestamps():
     """Run preprocessing to get latest HLS timestamps from S3."""
-    print("\n[orchestrator] === PHASE 2: GET TIMESTAMPS ===")
+    print("\n[orchestrator] === GET TIMESTAMPS ===")
     run_cmd(
         [sys.executable, str(SCRIPTS_DIR / "preprocess" / "get_latest_timestamp.py")],
         label="get_latest_timestamp.py",
@@ -139,13 +153,12 @@ def get_timestamps():
 
 def process_pipeline(target_date_str):
     """Run the full processing pipeline for a given date."""
-    print(f"\n[orchestrator] === PHASE 3: PROCESSING PIPELINE (date={target_date_str}) ===")
+    print(f"\n[orchestrator] === PROCESSING PIPELINE (date={target_date_str}) ===")
 
     # Step 1: AIS to transits (per site)
     for site in PROCESS_SITES:
         if _shutdown:
             return
-        # Use hyphenated slug for ais_to_transits
         site_slug = site.replace("_", "-")
         run_cmd(
             [sys.executable, str(SCRIPTS_DIR / "process" / "ais_to_transits.py"),
@@ -187,29 +200,63 @@ def process_pipeline(target_date_str):
     )
 
 
-def cleanup_sites_data():
-    """Remove intermediate files (JSONL, CSV, timestamps) after processing to prevent disk overflow."""
-    print("\n[orchestrator] === PHASE 4: CLEANUP ===")
+def cleanup_old_data():
+    """Remove processed date folders but keep today's data (still being collected)."""
+    print("\n[orchestrator] === CLEANUP ===")
     if not SITES_DIR.exists():
         return
 
+    today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
     total_freed = 0
-    for item in SITES_DIR.iterdir():
-        if item.is_dir():
-            size = sum(f.stat().st_size for f in item.rglob("*") if f.is_file())
-            shutil.rmtree(item)
-            total_freed += size
-            print(f"[orchestrator] Removed {item.name} ({size / 1024 / 1024:.1f} MB)")
 
-    # Recreate empty Sites dir
-    SITES_DIR.mkdir(parents=True, exist_ok=True)
+    for site_dir in SITES_DIR.iterdir():
+        if not site_dir.is_dir():
+            continue
+        for sub in site_dir.iterdir():
+            if not sub.is_dir():
+                continue
+            # Keep today's collection folder, delete everything else
+            folder_name = sub.name
+            if folder_name.isdigit() and folder_name != today_str:
+                size = sum(f.stat().st_size for f in sub.rglob("*") if f.is_file())
+                shutil.rmtree(sub)
+                total_freed += size
+                print(f"[orchestrator] Removed {site_dir.name}/{folder_name} ({size / 1024 / 1024:.1f} MB)")
+            # Also clean up transits/output folders
+            elif "_transits_" in folder_name or "_output" in folder_name:
+                size = sum(f.stat().st_size for f in sub.rglob("*") if f.is_file())
+                shutil.rmtree(sub)
+                total_freed += size
+                print(f"[orchestrator] Removed {site_dir.name}/{folder_name} ({size / 1024 / 1024:.1f} MB)")
+
+    # Also clean up timestamps
+    ts_dir = SITES_DIR / "timestamps"
+    if ts_dir.exists():
+        for sub in ts_dir.iterdir():
+            if sub.is_dir() and sub.name != today_str:
+                size = sum(f.stat().st_size for f in sub.rglob("*") if f.is_file())
+                shutil.rmtree(sub)
+                total_freed += size
+
     print(f"[orchestrator] Cleanup complete, freed {total_freed / 1024 / 1024:.1f} MB")
+
+
+def should_process_now():
+    """Check if it's time to run the daily processing pipeline.
+    Triggers once per day after PROCESS_HOUR_UTC."""
+    now = datetime.now(timezone.utc)
+    yesterday = (now - timedelta(days=1)).strftime("%Y%m%d")
+
+    if now.hour >= PROCESS_HOUR_UTC and yesterday not in _processed_dates:
+        return yesterday
+    return None
 
 
 def main():
     print("[orchestrator] Shipnoise AIS Pipeline starting")
     print(f"[orchestrator] PROJECT_ROOT: {PROJECT_ROOT}")
     print(f"[orchestrator] SITES_DIR: {SITES_DIR}")
+    print(f"[orchestrator] Daily processing triggers at {PROCESS_HOUR_UTC:02d}:00 UTC")
 
     # Load API keys
     api_keys = get_api_keys()
@@ -225,39 +272,42 @@ def main():
         cycle += 1
         cycle_start = datetime.now(timezone.utc)
         print(f"\n{'#'*60}")
-        print(f"[orchestrator] CYCLE {cycle} started at {cycle_start.isoformat()}")
+        print(f"[orchestrator] CYCLE {cycle} at {cycle_start.isoformat()}")
         print(f"{'#'*60}")
 
-        # Phase 1: Collect AIS data (runs for AIS_DURATION_SECS, default 1 hour)
+        # --- Always: Collect AIS data (1-hour chunk) ---
         collect_ais(api_keys)
 
         if _shutdown:
             break
 
-        # Phase 2: Get latest timestamps from S3
-        get_timestamps()
+        # --- Check: Is it time for daily processing? ---
+        target_date = should_process_now()
+        if target_date:
+            print(f"\n[orchestrator] >>> DAILY PROCESSING TRIGGERED for {target_date} <<<")
 
-        if _shutdown:
-            break
+            # Get audio timestamps from S3
+            get_timestamps()
 
-        # Phase 3: Process yesterday's data (if not already done)
-        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y%m%d")
-        if yesterday not in _processed_dates:
-            process_pipeline(yesterday)
-            _processed_dates.add(yesterday)
-            print(f"[orchestrator] Marked {yesterday} as processed")
+            if not _shutdown:
+                # Run full processing pipeline
+                process_pipeline(target_date)
+                _processed_dates.add(target_date)
+                print(f"[orchestrator] Marked {target_date} as processed")
+
+            if not _shutdown:
+                # Clean up old data (keep today's)
+                cleanup_old_data()
         else:
-            print(f"[orchestrator] Date {yesterday} already processed, skipping pipeline")
-
-        # Phase 4: Clean up intermediate data to prevent disk from filling up
-        cleanup_sites_data()
+            yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y%m%d")
+            print(f"[orchestrator] Not yet time for processing (triggers at {PROCESS_HOUR_UTC:02d}:00 UTC, yesterday={yesterday})")
 
         cycle_end = datetime.now(timezone.utc)
         elapsed = (cycle_end - cycle_start).total_seconds()
         print(f"\n[orchestrator] Cycle {cycle} completed in {elapsed:.0f}s")
 
         if not _shutdown:
-            print("[orchestrator] Sleeping 30s before next cycle...")
+            print("[orchestrator] Sleeping 30s before next collection...")
             time.sleep(30)
 
     print("[orchestrator] Shutdown complete")
