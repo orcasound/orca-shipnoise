@@ -11,11 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Python dependencies
-COPY requirements.txt .
+COPY scripts/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy all scripts
-COPY . ./scripts/
+COPY scripts/ ./scripts/
 
 # Create Sites directory for intermediate data (ephemeral)
 RUN mkdir -p /app/Sites

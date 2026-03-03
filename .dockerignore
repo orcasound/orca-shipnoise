@@ -1,6 +1,11 @@
 /.git
 /node_modules
+/frontend
+/amplify
+/amplify-backup
+/public
+/src
 .dockerignore
 .env
-Dockerfile
+*.md
 fly.toml
