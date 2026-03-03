@@ -3,8 +3,8 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'orca-shipnoise'
-primary_region = 'iad'
+app = 'orca-shipnoise-sjdtow'
+primary_region = 'sjc'
 
 [build]
   dockerfile = "Dockerfile"
