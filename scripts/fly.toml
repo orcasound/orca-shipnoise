@@ -2,7 +2,7 @@
 # Deploy: fly deploy --config scripts/fly.toml
 
 app = 'orca-shipnoise-worker'
-primary_region = 'sea'
+primary_region = 'sjc'
 
 [build]
   dockerfile = "Dockerfile"
