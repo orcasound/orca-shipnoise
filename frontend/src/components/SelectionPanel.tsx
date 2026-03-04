@@ -229,6 +229,10 @@ const normalizeClip = (clip: ClipApiResult): RecordingEntry => {
     audioUrls: audioSources,
     cpaDistanceMeters: clip.cpa_distance_m ?? undefined,
     noiseLevelDb: undefined,
+    // HLS playback fields
+    hlsUrl: clip.hls_url ?? null,
+    startOffsetSec: clip.start_offset_sec ?? null,
+    endOffsetSec: clip.end_offset_sec ?? null,
   };
 };
 

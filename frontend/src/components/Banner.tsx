@@ -47,7 +47,6 @@ const Banner = () => {
                 alt="Shipnoise Logo"
                 width={38.09}
                 height={40}
-                style={{ objectFit: 'contain' }}
                 priority
               />
               <Typography

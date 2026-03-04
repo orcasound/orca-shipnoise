@@ -287,7 +287,7 @@ const InlineWavePlayer: React.FC<InlineWavePlayerProps> = ({
                 xmlns="http://www.w3.org/2000/svg"
                 sx={{ width: { xs: 64, md: 74 }, height: { xs: 64, md: 74 } }}
               >
-                <circle cx="12" cy="12" r="12" fill="#013C74" />
+                <circle cx="12" cy="12" r="12" fill="#002447" />
                 <path d="M8 6h3v12H8V6zm5 0h3v12h-3V6z" fill="white" />
               </Box>
             ) : (
@@ -356,7 +356,7 @@ const InlineWavePlayer: React.FC<InlineWavePlayerProps> = ({
                 sx={{
                   width: 4,
                   borderRadius: '999px',
-                  bgcolor: idx <= activeBarIndex ? '#013C74' : '#d1d5db',
+                  bgcolor: idx <= activeBarIndex ? '#002447' : '#d1d5db',
                   height: `${height}px`,
                   minHeight: '6px',
                 }}

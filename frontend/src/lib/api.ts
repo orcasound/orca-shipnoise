@@ -11,6 +11,10 @@ export type ClipApiResult = {
   cpa_distance_m?: number | null;
   t_cpa?: string | null;
   center_segment_index?: number;
+  // HLS playback fields (derived from segment_details on the backend)
+  hls_url?: string | null;
+  start_offset_sec?: number | null;
+  end_offset_sec?: number | null;
 };
 
 export type ClipsSearchResponse = {

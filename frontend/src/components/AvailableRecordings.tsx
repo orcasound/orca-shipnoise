@@ -11,6 +11,7 @@ import {
 } from "@mui/material";
 import VesselIcon from "@/assets/VesselIcon.png";
 import UpIcon from "@/assets/up.svg";
+import DetectionsPlayer from "@/components/DetectionsPlayer";
 import InlineWavePlayer from "@/components/InlineWavePlayer";
 
 // 1. Updated Interface: Added 'id' for better React keys
@@ -22,9 +23,13 @@ export type RecordingEntry = {
   date?: string;
   time?: string;
   timestamp?: string | null;
-  audioUrls: string[]; 
+  audioUrls: string[];
   cpaDistanceMeters?: number | null;
   noiseLevelDb?: number | null;
+  // HLS playback fields
+  hlsUrl?: string | null;
+  startOffsetSec?: number | null;
+  endOffsetSec?: number | null;
 };
 
 interface AvailableRecordingsProps {
@@ -49,13 +54,19 @@ const PREFERRED_LOCATIONS = [
 ];
 
 const AvailableRecordings: React.FC<AvailableRecordingsProps> = ({ recordings = [] }) => {
-  // Optimization: Filter invalid recordings once
+  // Filter: accept recordings with either a valid HLS URL (new backend)
+  // or valid audio URLs (old backend fallback)
   const safeRecordings = useMemo(() => {
     return recordings
-      .filter((record) =>
-        Array.isArray(record.audioUrls) &&
-        record.audioUrls.some((url) => typeof url === "string" && url.trim().length > 0)
-      )
+      .filter((record) => {
+        const hasHls =
+          typeof record.hlsUrl === "string" && record.hlsUrl.trim().length > 0 &&
+          record.startOffsetSec != null && record.endOffsetSec != null;
+        const hasAudio =
+          Array.isArray(record.audioUrls) &&
+          record.audioUrls.some((url) => typeof url === "string" && url.trim().length > 0);
+        return hasHls || hasAudio;
+      })
       .map((record) => ({
         ...record,
         location: record.location || "Unknown location",
@@ -297,12 +308,22 @@ const AvailableRecordings: React.FC<AvailableRecordingsProps> = ({ recordings = 
                             py: { xs: 2.5, md: "25px" },
                           }}
                         >
-                          <InlineWavePlayer
-                            audioUrls={rec.audioUrls}
-                            date={rec.date}
-                            time={rec.time}
-                            timestamp={rec.timestamp}
-                          />
+                          {rec.hlsUrl && rec.startOffsetSec != null && rec.endOffsetSec != null ? (
+                            <DetectionsPlayer
+                              hlsUrl={rec.hlsUrl}
+                              startOffsetSec={rec.startOffsetSec}
+                              endOffsetSec={rec.endOffsetSec}
+                              timestamp={rec.timestamp}
+                              date={rec.date}
+                            />
+                          ) : (
+                            <InlineWavePlayer
+                              audioUrls={rec.audioUrls}
+                              date={rec.date}
+                              time={rec.time}
+                              timestamp={rec.timestamp}
+                            />
+                          )}
                         </Box>
                       );
                     })}
