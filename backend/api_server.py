@@ -7,6 +7,7 @@ from sqlalchemy import text, create_engine
 from typing import List
 import os
 import json
+import re
 
 app = FastAPI()
 
@@ -24,11 +25,48 @@ engine = create_engine(DB_URL, pool_pre_ping=True)
 
 # --- Constants ---
 ORCASOUND_BASE_URL = "https://audio-orcasound-net.s3.amazonaws.com"
+SEG_DUR = 10  # seconds per .ts segment
 
 # FIX: Updated to lowercase to match the PostgreSQL database values
 DEFAULT_SITES = ["bush_point", "orcasound_lab", "port_townsend", "sunset_bay"]
 
 # --- Helper Function ---
+def parse_hls_info(s3_bucket, segment_details):
+    """
+    Derives HLS manifest URL and playback offsets from segment_details.
+    segment format: "1539203407/live004.ts"
+    Returns (hls_url, start_offset_sec, end_offset_sec) or (None, None, None).
+    """
+    if not s3_bucket or not segment_details:
+        return None, None, None
+
+    if isinstance(segment_details, str):
+        try:
+            segment_details = json.loads(segment_details)
+        except Exception:
+            return None, None, None
+
+    if not isinstance(segment_details, list) or not segment_details:
+        return None, None, None
+
+    seg_nums = []
+    folder_id = None
+    for seg in segment_details:
+        m = re.match(r'^(\d+)/live(\d+)\.ts$', str(seg))
+        if m:
+            if folder_id is None:
+                folder_id = m.group(1)
+            seg_nums.append(int(m.group(2)))
+
+    if folder_id is None or not seg_nums:
+        return None, None, None
+
+    hls_url = f"{ORCASOUND_BASE_URL}/{s3_bucket}/hls/{folder_id}/live.m3u8"
+    start_offset_sec = min(seg_nums) * SEG_DUR
+    end_offset_sec = (max(seg_nums) + 1) * SEG_DUR
+    return hls_url, start_offset_sec, end_offset_sec
+
+
 def generate_public_urls(s3_bucket, segment_details):
     """
     Generates a list of direct HTTPS URLs for Orcasound S3 bucket.
@@ -113,9 +151,13 @@ def search_clips(
     results = []
     for row in rows:
         public_urls = generate_public_urls(row["s3_bucket"], row["segment_details"])
+        hls_url, start_offset_sec, end_offset_sec = parse_hls_info(row["s3_bucket"], row["segment_details"])
         results.append({
             **row,
             "audio_urls": public_urls,
+            "hls_url": hls_url,
+            "start_offset_sec": start_offset_sec,
+            "end_offset_sec": end_offset_sec,
             "center_segment_index": 1
         })
 
