@@ -144,7 +144,7 @@ export default function ReportPage() {
                 alt="Shipnoise Logo"
                 width={38}
                 height={40}
-                style={{ width: 38, height: 40, objectFit: "contain" }}
+                style={{ objectFit: "contain" }}
                 priority
               />
               <Typography

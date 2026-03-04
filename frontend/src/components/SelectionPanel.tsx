@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
   Box,
@@ -16,6 +16,17 @@ import {
   Typography,
 } from '@mui/material';
 import AvailableRecordings, { type RecordingEntry } from '@/components/AvailableRecordings';
+import { useVesselSearch, useClipsSearch } from '@/hooks/useShipnoiseApi';
+import { useDebounce } from '@/hooks/useDebounce';
+import {
+  type VesselOption,
+  type ClipApiResult,
+  type ClipsSearchParams,
+  SITE_LABELS,
+  normalizeNameForSearch,
+  formatShipName,
+  formatTitleCase,
+} from '@/lib/api';
 import DeleteIcon from '@/assets/delete.svg';
 import WarningIcon from '@/assets/Warning.svg';
 import SearchIcon from '@/assets/Search.svg';
@@ -26,72 +37,10 @@ declare global {
   }
 }
 
-type VesselOption = {
-  name: string;
-};
-
-// Update 1: Matches the new API response structure
-type ClipApiResult = {
-  site: string;
-  date_utc?: string;
-  mmsi?: string | null;
-  shipname?: string | null;
-  audio_urls?: string[] | null;
-  cpa_distance_m?: number | null;
-  t_cpa?: string | null;
-  center_segment_index?: number;
-};
-
 type WarningInfo = {
   icon: string;
   content: React.ReactNode;
 };
-
-const SITE_LABELS: Record<string, string> = {
-  bush_point: 'Bush Point',
-  orcasound_lab: 'Orcasound Lab',
-  port_townsend: 'Port Townsend',
-  sunset_bay: 'Sunset Bay',
-};
-
-const SITE_OPTIONS = Object.entries(SITE_LABELS).map(([value, label]) => ({
-  value,
-  label,
-}));
-
-const CLIPS_API_BASE_URL = process.env.NEXT_PUBLIC_CLIPS_API_BASE_URL?.replace(/\/$/, '');
-
-const buildBackendUrl = (path: string, params: URLSearchParams): string | null => {
-  if (!CLIPS_API_BASE_URL) return null;
-  const url = new URL(path, `${CLIPS_API_BASE_URL}/`);
-  for (const [key, value] of params.entries()) {
-    url.searchParams.append(key, value);
-  }
-  return url.toString();
-};
-
-const SITE_VALUES = SITE_OPTIONS.map((option) => option.value);
-
-const formatShipName = (value?: string | null): string | undefined => {
-  if (!value) return undefined;
-  const cleaned = value.replace(/[_\s]+/g, ' ').trim();
-  if (!cleaned) return undefined;
-  return cleaned
-    .split(' ')
-    .filter(Boolean)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
-    .join(' ');
-};
-
-const normalizeNameForSearch = (value: string): string =>
-  value.replace(/[_\s]+/g, ' ').trim().toLowerCase();
-
-const formatTitleCase = (value: string): string =>
-  value
-    .split(' ')
-    .filter(Boolean)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
-    .join(' ');
 
 interface VesselInputProps {
   options: VesselOption[];
@@ -185,6 +134,7 @@ const VesselInput: React.FC<VesselInputProps> = ({ options, onChange, placeholde
         placeholder={placeholder}
         variant="outlined"
         size="small"
+        autoComplete="off"
         InputProps={{
           endAdornment: inputValue ? (
             <InputAdornment position="end">
@@ -252,66 +202,115 @@ const VesselInput: React.FC<VesselInputProps> = ({ options, onChange, placeholde
   );
 };
 
+const normalizeClip = (clip: ClipApiResult): RecordingEntry => {
+  const siteKey = clip.site?.replace(/\s+/g, '_').toLowerCase();
+  const locationLabel =
+    (siteKey && SITE_LABELS[siteKey]) ||
+    (clip.site ? formatTitleCase(clip.site.replace(/[_\s]+/g, ' ')) : 'Unknown site');
+
+  const audioSources = Array.isArray(clip.audio_urls)
+    ? clip.audio_urls.filter((url) => typeof url === 'string' && url.trim().length > 0)
+    : [];
+
+  const vesselName =
+    formatShipName(clip.shipname) ??
+    formatShipName(clip.mmsi ?? '') ??
+    clip.shipname ??
+    clip.mmsi ??
+    'Unknown vessel';
+
+  return {
+    vessel: vesselName,
+    mmsi: clip.mmsi ?? undefined,
+    location: locationLabel,
+    date: clip.date_utc,
+    time: undefined,
+    timestamp: clip.t_cpa ?? null,
+    audioUrls: audioSources,
+    cpaDistanceMeters: clip.cpa_distance_m ?? undefined,
+    noiseLevelDb: undefined,
+  };
+};
 
 const SelectionPanel = () => {
   const [selectedVessel, setSelectedVessel] = useState<VesselOption | null>(null);
-  const [showRecordings, setShowRecordings] = useState(false);
   const [vesselInputValue, setVesselInputValue] = useState('');
   const [warningInfo, setWarningInfo] = useState<WarningInfo | null>(null);
   const [hideDropdownSignal, setHideDropdownSignal] = useState(0);
-  const [recordings, setRecordings] = useState<RecordingEntry[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [vesselOptions, setVesselOptions] = useState<VesselOption[]>([]);
-  
-  // Optimization: Ref to store the AbortController for the main search
-  const mainSearchAbortController = useRef<AbortController | null>(null);
+  const [searchParams, setSearchParams] = useState<ClipsSearchParams | null>(null);
+
+  // React Query: debounced vessel suggestions
+  const debouncedInput = useDebounce(vesselInputValue, 300);
+  const { data: vesselOptions = [] } = useVesselSearch(debouncedInput);
+
+  // React Query: clips search (auto-fetches when searchParams is set)
+  const clipsQuery = useClipsSearch(searchParams);
+
+  // Derive recordings from clips data
+  const recordings = useMemo<RecordingEntry[]>(() => {
+    if (!clipsQuery.data) return [];
+    const clips = Array.isArray(clipsQuery.data.results) ? clipsQuery.data.results : [];
+    return clips.map(normalizeClip);
+  }, [clipsQuery.data]);
+
+  // Derive date range label
+  const dateRangeLabel = useMemo(() => {
+    if (!clipsQuery.data) return undefined;
+    const payload = clipsQuery.data;
+    if (typeof payload.date_range_label === 'string') return payload.date_range_label;
+    if (payload.start_date && payload.end_date) {
+      return payload.start_date === payload.end_date
+        ? payload.start_date
+        : `${payload.start_date} – ${payload.end_date}`;
+    }
+    return undefined;
+  }, [clipsQuery.data]);
+
+  // Side effects when search completes (gtag + warnings)
+  const lastDataUpdatedAt = useRef(0);
+  const selectedVesselRef = useRef(selectedVessel);
+  selectedVesselRef.current = selectedVessel;
+  const vesselInputRef = useRef(vesselInputValue);
+  vesselInputRef.current = vesselInputValue;
 
   useEffect(() => {
-    const normalizedValue = normalizeNameForSearch(vesselInputValue);
-    if (!normalizedValue) {
-      setVesselOptions([]);
-      return;
+    if (!clipsQuery.data || clipsQuery.isFetching) return;
+    if (clipsQuery.dataUpdatedAt === lastDataUpdatedAt.current) return;
+    lastDataUpdatedAt.current = clipsQuery.dataUpdatedAt;
+
+    if (recordings.length === 0) {
+      setWarningInfo({
+        icon: WarningIcon,
+        content: dateRangeLabel
+          ? `No recordings match that vessel between ${dateRangeLabel}.`
+          : 'No recordings found for that vessel.',
+      });
+    } else {
+      setWarningInfo(null);
+      setHideDropdownSignal((prev) => prev + 1);
+
+      const vesselLabel = (selectedVesselRef.current?.name ?? vesselInputRef.current.trim()) || 'ALL';
+      window.gtag?.('event', 'vessel_search', {
+        event_category: 'selection_panel',
+        event_label: vesselLabel,
+        vessel: vesselLabel,
+        site: 'ALL_SITES',
+        date: new Date().toISOString().slice(0, 10),
+        date_window: dateRangeLabel ?? 'LAST_60_DAYS',
+        date_range_label: dateRangeLabel ?? 'LAST_60_DAYS',
+      });
     }
+  }, [clipsQuery.data, clipsQuery.isFetching, clipsQuery.dataUpdatedAt, recordings.length, dateRangeLabel]);
 
-    const controller = new AbortController();
-    
-    // Optimization: Debounce the suggestion fetch by 300ms
-    // This prevents firing a request for every single keystroke
-    const timeoutId = setTimeout(async () => {
-      try {
-        const params = new URLSearchParams({
-          q: normalizedValue,
-          limit: '20',
-        });
-        const url = buildBackendUrl('/vessels/search', params);
-        if (!url) {
-          console.error('NEXT_PUBLIC_CLIPS_API_BASE_URL is not configured');
-          return;
-        }
-        const response = await fetch(url, {
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          throw new Error(`Suggestion request failed with ${response.status}`);
-        }
-        const payload = await response.json();
-        const names: string[] = Array.isArray(payload.results) ? payload.results : [];
-        setVesselOptions(
-          names.map((name) => ({
-            name: formatShipName(name) ?? name,
-          })),
-        );
-      } catch (error) {
-        if ((error as Error).name === 'AbortError') return;
-        console.error('Failed to fetch vessel suggestions', error);
-      }
-    }, 300); // 300ms delay
-
-    return () => {
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [vesselInputValue]);
+  // Handle search errors
+  useEffect(() => {
+    if (!clipsQuery.error) return;
+    const message =
+      (clipsQuery.error as Error).message?.includes('NEXT_PUBLIC_CLIPS_API_BASE_URL')
+        ? 'Search unavailable: backend URL is not configured.'
+        : 'Unable to load recordings right now. Please try again.';
+    setWarningInfo({ icon: WarningIcon, content: message });
+  }, [clipsQuery.error]);
 
   const handleVesselInputChange = (value: string) => {
     setVesselInputValue(value);
@@ -331,140 +330,20 @@ const SelectionPanel = () => {
     setWarningInfo(null);
   };
 
-  const normalizedInput = vesselInputValue.trim();
-
-  const normalizeClip = (clip: ClipApiResult): RecordingEntry => {
-    const siteKey = clip.site?.replace(/\s+/g, '_').toLowerCase();
-    const locationLabel =
-      (siteKey && SITE_LABELS[siteKey]) ||
-      (clip.site ? formatTitleCase(clip.site.replace(/[_\s]+/g, ' ')) : 'Unknown site');
-
-    const audioSources = Array.isArray(clip.audio_urls)
-      ? clip.audio_urls.filter((url) => typeof url === 'string' && url.trim().length > 0)
-      : [];
-
-    const vesselName =
-      formatShipName(clip.shipname) ??
-      formatShipName(clip.mmsi ?? '') ??
-      clip.shipname ??
-      clip.mmsi ??
-      'Unknown vessel';
-      
-    return {
-      vessel: vesselName,
-      mmsi: clip.mmsi ?? undefined,
-      location: locationLabel,
-      date: clip.date_utc,
-      time: undefined,
-      timestamp: clip.t_cpa ?? null,
-      audioUrls: audioSources, // Mapping to the new interface
-      cpaDistanceMeters: clip.cpa_distance_m ?? undefined,
-      noiseLevelDb: undefined,
-    };
-  };
-
-  const handleSearchClick = async () => {
-    // Optimization: Cancel any previous pending search requests
-    if (mainSearchAbortController.current) {
-      mainSearchAbortController.current.abort();
-    }
-    mainSearchAbortController.current = new AbortController();
-
-    setIsSearching(true);
+  const handleSearchClick = () => {
     setWarningInfo(null);
-
-    try {
-      const searchDateIso = new Date().toISOString().slice(0, 10);
-      const requestEndDate = searchDateIso;
-      const startDateObj = new Date(searchDateIso);
-      startDateObj.setUTCDate(startDateObj.getUTCDate() - 59);
-      const requestStartDate = startDateObj.toISOString().slice(0, 10);
-
-      const params = new URLSearchParams({
-        shipname: normalizedInput,
-        start_date: requestStartDate,
-        end_date: requestEndDate,
-        limit_per_site: '5',
-      });
-      SITE_VALUES.forEach((site) => params.append('sites', site));
-      const url = buildBackendUrl('/clips/search', params);
-      if (!url) {
-        throw new Error('NEXT_PUBLIC_CLIPS_API_BASE_URL is not configured');
-      }
-      
-      const response = await fetch(url, {
-        signal: mainSearchAbortController.current.signal
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Clip search failed with ${response.status}`);
-      }
-
-      const payload = await response.json();
-      const clips: ClipApiResult[] = Array.isArray(payload.results)
-        ? payload.results
-        : [];
-      const responseStartDate: string | undefined =
-        typeof payload.start_date === 'string' ? payload.start_date : undefined;
-      const responseEndDate: string | undefined =
-        typeof payload.end_date === 'string' ? payload.end_date : undefined;
-      const dateRangeLabel: string | undefined =
-        typeof payload.date_range_label === 'string'
-          ? payload.date_range_label
-          : responseStartDate && responseEndDate
-            ? responseStartDate === responseEndDate
-              ? responseStartDate
-              : `${responseStartDate} – ${responseEndDate}`
-            : undefined;
-
-      const normalizedRecordings = clips.map(normalizeClip);
-
-      if (normalizedRecordings.length === 0) {
-        setShowRecordings(false);
-        setWarningInfo({
-          icon: WarningIcon,
-          content: dateRangeLabel
-            ? `No recordings match that vessel between ${dateRangeLabel}.`
-            : 'No recordings found for that vessel.',
-        });
-        return;
-      }
-
-      const vesselLabel = (selectedVessel?.name ?? normalizedInput) || 'ALL';
-
-      window.gtag?.('event', 'vessel_search', {
-        event_category: 'selection_panel',
-        event_label: vesselLabel,
-        vessel: vesselLabel,
-        site: 'ALL_SITES',
-        date: searchDateIso,
-        date_window: dateRangeLabel ?? 'LAST_60_DAYS',
-        date_range_label: dateRangeLabel ?? 'LAST_60_DAYS',
-      });
-
-      setRecordings(normalizedRecordings);
-      setShowRecordings(true);
-      setHideDropdownSignal((prev) => prev + 1);
-      setWarningInfo(null);
-    } catch (error) {
-      if ((error as Error).name === 'AbortError') return;
-      console.error('Failed to load clips', error);
-      const message =
-        (error as Error).message?.includes('NEXT_PUBLIC_CLIPS_API_BASE_URL') === true
-          ? 'Search unavailable: backend URL is not configured.'
-          : 'Unable to load recordings right now. Please try again.';
-      setShowRecordings(false);
-      setWarningInfo({
-        icon: WarningIcon,
-        content: message,
-      });
-    } finally {
-      // Only set searching to false if we weren't aborted
-      if (mainSearchAbortController.current && !mainSearchAbortController.current.signal.aborted) {
-         setIsSearching(false);
-      }
-    }
+    const searchDateIso = new Date().toISOString().slice(0, 10);
+    const startDateObj = new Date(searchDateIso);
+    startDateObj.setUTCDate(startDateObj.getUTCDate() - 59);
+    setSearchParams({
+      shipname: vesselInputValue.trim(),
+      startDate: startDateObj.toISOString().slice(0, 10),
+      endDate: searchDateIso,
+    });
   };
+
+  const showRecordings = recordings.length > 0 && !clipsQuery.isFetching;
+  const isSearching = clipsQuery.isFetching;
 
   const iconSize = 15;
 
