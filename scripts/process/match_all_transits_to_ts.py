@@ -20,10 +20,10 @@ SITES_DIR = os.path.join(PROJECT_ROOT, "Sites")
 GLOBAL_TS_DIR = os.path.join(SITES_DIR, "timestamps")
 
 SITES = {
-    "bush_point": "Bush_Point_data",
-    "orcasound_lab": "Orcasound_Lab_data",
-    "port_townsend": "Port_Townsend_data",
-    "sunset_bay": "Sunset_Bay_data",
+    "bush_point": "bush_point_data",
+    "orcasound_lab": "orcasound_lab_data",
+    "port_townsend": "port_townsend_data",
+    "sunset_bay": "sunset_bay_data",
 }
 
 SEARCH_WINDOW = 180  # ±3 minutes
