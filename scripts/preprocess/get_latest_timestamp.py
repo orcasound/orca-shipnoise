@@ -19,6 +19,7 @@ import datetime
 # ---------- SETTINGS ----------
 BUCKET = "audio-orcasound-net"
 SEG_DUR = 10  # seconds per .ts segment
+STALE_THRESHOLD_DAYS = 7  # warn if latest timestamps are older than this
 
 # auto-detect project base
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../Sites"))
@@ -113,6 +114,11 @@ def export_latest_complete_for_site(site: str, base_prefix: str):
         f.write(content)
 
     print(f"✅ Saved {len(lines)} entries → {out_file}")
+
+    days_old = (datetime.date.today() - datetime.date.fromisoformat(date_str)).days
+    if days_old > STALE_THRESHOLD_DAYS:
+        print(f"⚠️  WARNING: {site} timestamps are {days_old} days old ({date_str}). "
+              f"Hydrophone may be offline.")
 
     return out_file
 
