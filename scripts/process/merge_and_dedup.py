@@ -20,7 +20,7 @@ from datetime import datetime, timezone, timedelta
 # ===== CONFIGURATION =====
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 SITES_DIR = os.path.join(PROJECT_ROOT, "Sites")
-SITES = ["Bush_Point_data", "Orcasound_Lab_data", "Port_Townsend_data", "Sunset_Bay_data"]
+SITES = ["bush_point_data", "orcasound_lab_data", "port_townsend_data", "sunset_bay_data"]
 
 # ===== DISTANCE RULES =====
 DEFAULT_CPA_MAX_M = 5000     # Normal ships (≤150 m)
@@ -35,7 +35,7 @@ SITE_RANGE_OVERRIDES = {
         "large": 9000,
         "small": 5000,
     },
-    "Sunset_Bay_data": {
+    "sunset_bay_data": {
         "default": 7500,
         "large": 9000,
         "small": 5000,

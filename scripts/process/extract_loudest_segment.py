@@ -266,8 +266,7 @@ def main():
     target_sites = sites.keys() if args.site == "all" else [args.site]
     
     for site in target_sites:
-        formatted_name = site.replace("_", " ").title().replace(" ", "_")
-        site_dir = os.path.join(base_dir, f"{formatted_name}_data")
+        site_dir = os.path.join(base_dir, f"{site}_data")
         if not os.path.isdir(site_dir): continue
 
         dates = args.date if args.date else []
