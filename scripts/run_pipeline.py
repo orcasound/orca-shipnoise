@@ -194,13 +194,20 @@ def process_pipeline(target_date_str):
     )
 
 
+KEEP_DAYS = 5  # keep this many recent days of raw data on disk
+
+
 def cleanup_old_data():
-    """Remove processed date folders but keep today's data (still being collected)."""
+    """Remove date folders older than KEEP_DAYS to preserve disk space."""
     print("\n[orchestrator] === CLEANUP ===")
     if not SITES_DIR.exists():
         return
 
-    today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    now = datetime.now(timezone.utc)
+    keep_dates = {
+        (now - timedelta(days=i)).strftime("%Y%m%d")
+        for i in range(KEEP_DAYS)
+    }
     total_freed = 0
 
     for site_dir in SITES_DIR.iterdir():
@@ -209,25 +216,27 @@ def cleanup_old_data():
         for sub in site_dir.iterdir():
             if not sub.is_dir():
                 continue
-            # Keep today's collection folder, delete everything else
             folder_name = sub.name
-            if folder_name.isdigit() and folder_name != today_str:
+            # Delete raw date folders older than KEEP_DAYS
+            if folder_name.isdigit() and folder_name not in keep_dates:
                 size = sum(f.stat().st_size for f in sub.rglob("*") if f.is_file())
                 shutil.rmtree(sub)
                 total_freed += size
                 print(f"[orchestrator] Removed {site_dir.name}/{folder_name} ({size / 1024 / 1024:.1f} MB)")
-            # Also clean up transits/output folders
+            # Also clean up transits/output folders for old dates
             elif "_transits_" in folder_name or "_output" in folder_name:
-                size = sum(f.stat().st_size for f in sub.rglob("*") if f.is_file())
-                shutil.rmtree(sub)
-                total_freed += size
-                print(f"[orchestrator] Removed {site_dir.name}/{folder_name} ({size / 1024 / 1024:.1f} MB)")
+                date_part = folder_name.split("_")[0]
+                if date_part.isdigit() and date_part not in keep_dates:
+                    size = sum(f.stat().st_size for f in sub.rglob("*") if f.is_file())
+                    shutil.rmtree(sub)
+                    total_freed += size
+                    print(f"[orchestrator] Removed {site_dir.name}/{folder_name} ({size / 1024 / 1024:.1f} MB)")
 
-    # Also clean up timestamps
+    # Also clean up timestamps older than KEEP_DAYS
     ts_dir = SITES_DIR / "timestamps"
     if ts_dir.exists():
         for sub in ts_dir.iterdir():
-            if sub.is_dir() and sub.name != today_str:
+            if sub.is_dir() and sub.name not in keep_dates:
                 size = sum(f.stat().st_size for f in sub.rglob("*") if f.is_file())
                 shutil.rmtree(sub)
                 total_freed += size
