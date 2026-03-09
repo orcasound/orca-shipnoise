@@ -12,6 +12,7 @@ Logic:
 """
 
 import os
+import sys
 import argparse
 import tempfile
 import requests
@@ -21,6 +22,9 @@ import pandas as pd
 import time
 import shutil
 from scipy.io import wavfile
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from sites import KEY_TO_S3, KEY_TO_DATA_DIR
 
 # Import DB function
 from lib.db import insert_detection
@@ -176,13 +180,26 @@ def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
                     if not ts_path: continue
                     
                     wav_path = ts_path.replace(".ts", ".wav")
-                    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", ts_path, "-ac", "1", "-ar", "48000", wav_path], check=False)
+                    result = subprocess.run(
+                        ["ffmpeg", "-loglevel", "error", "-y", "-i", ts_path, "-ac", "1", "-ar", "48000", wav_path],
+                        check=False,
+                    )
+                    if result.returncode != 0:
+                        vprint(verbose, f"      ⚠️ ffmpeg failed for {os.path.basename(ts_path)}")
+                        continue
                     wav_files.append((folder, seg_int, wav_path))
 
             if not wav_files: continue
 
-            # 2. Find Loudest
-            loud_folder, loud_seg_int, loud_wav = max(wav_files, key=lambda t: rms_db(t[2])[0])
+            # 2. Find Loudest (filter NaN rms before comparing)
+            scored = [(f, s, w, rms_db(w)[0]) for f, s, w in wav_files]
+            valid = [(f, s, w, rms) for f, s, w, rms in scored if not np.isnan(rms)]
+            if not valid: continue
+            loud_folder, loud_seg_int, loud_wav, _ = max(valid, key=lambda t: t[3])
+
+            if loud_seg_int < 1:
+                vprint(verbose, "   ⚠️ Loudest segment is #0 (no previous segment). Skipping.")
+                continue
 
             # 3. Confidence Check
             rms, mean_db, max_db = rms_db(loud_wav)
@@ -256,17 +273,11 @@ def main():
     args = parser.parse_args()
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../Sites"))
-    sites = {
-        "bush_point": "rpi_bush_point",
-        "orcasound_lab": "rpi_orcasound_lab",
-        "port_townsend": "rpi_port_townsend",
-        "sunset_bay": "rpi_sunset_bay",
-    }
 
-    target_sites = sites.keys() if args.site == "all" else [args.site]
-    
+    target_sites = KEY_TO_S3.keys() if args.site == "all" else [args.site]
+
     for site in target_sites:
-        site_dir = os.path.join(base_dir, f"{site}_data")
+        site_dir = os.path.join(base_dir, KEY_TO_DATA_DIR[site])
         if not os.path.isdir(site_dir): continue
 
         dates = args.date if args.date else []
@@ -280,7 +291,7 @@ def main():
             
             for fname in sorted(os.listdir(csv_dir)):
                 if fname.endswith("_windowed_merged.csv"):
-                    process_csv(site, site_dir, sites[site], os.path.join(csv_dir, fname), args.verbose)
+                    process_csv(site, site_dir, KEY_TO_S3[site], os.path.join(csv_dir, fname), args.verbose)
 
 if __name__ == "__main__":
     main()

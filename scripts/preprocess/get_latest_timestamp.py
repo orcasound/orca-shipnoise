@@ -11,11 +11,15 @@ Results are stored under:
 import argparse
 import os
 import re
+import sys
 import boto3
 from botocore import UNSIGNED
 from botocore.client import Config
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from sites import KEY_TO_HLS
 
 # ---------- SETTINGS ----------
 BUCKET = "audio-orcasound-net"
@@ -25,12 +29,7 @@ STALE_THRESHOLD_DAYS = 7
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../Sites"))
 OUTPUT_ROOT = os.path.join(BASE_DIR, "timestamps")
 
-SITES = {
-    "bush_point":    "rpi_bush_point/hls/",
-    "orcasound_lab": "rpi_orcasound_lab/hls/",
-    "port_townsend": "rpi_port_townsend/hls/",
-    "sunset_bay":    "rpi_sunset_bay/hls/",
-}
+SITES = KEY_TO_HLS
 
 # ---------- S3 CLIENT ----------
 s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))

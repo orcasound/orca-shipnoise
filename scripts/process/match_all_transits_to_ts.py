@@ -11,20 +11,19 @@ Stage-1: Automated AIS ↔ Hydrophone Matching (multi-site, DST-safe)
 
 import argparse
 import os
+import sys
 import pandas as pd
 from datetime import datetime, timedelta, timezone
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from sites import KEY_TO_DATA_DIR
 
 # === CONFIGURATION ===
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 SITES_DIR = os.path.join(PROJECT_ROOT, "Sites")
 GLOBAL_TS_DIR = os.path.join(SITES_DIR, "timestamps")
 
-SITES = {
-    "bush_point": "bush_point_data",
-    "orcasound_lab": "orcasound_lab_data",
-    "port_townsend": "port_townsend_data",
-    "sunset_bay": "sunset_bay_data",
-}
+SITES = KEY_TO_DATA_DIR
 
 SEARCH_WINDOW = 180  # ±3 minutes
 MIN_DAY_HOURS = 23.5
