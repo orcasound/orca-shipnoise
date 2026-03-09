@@ -39,17 +39,14 @@ def find_timestamp_file(site_key, per_site_dir, day):
     if per_site_dir and os.path.isdir(per_site_dir):
         search_dirs.append(per_site_dir)
 
-    day_iso = os.path.join(GLOBAL_TS_DIR, day.strftime("%Y-%m-%d"))
     day_compact = os.path.join(GLOBAL_TS_DIR, day.strftime("%Y%m%d"))
-    for d in (day_iso, day_compact):
-        if os.path.isdir(d):
-            search_dirs.append(d)
+    if os.path.isdir(day_compact):
+        search_dirs.append(day_compact)
 
     if not search_dirs:
         return None
 
     ymd = day.strftime("%Y%m%d")
-    alt = day.strftime("%Y-%m-%d")
     matches = []
 
     for directory in search_dirs:
@@ -58,7 +55,7 @@ def find_timestamp_file(site_key, per_site_dir, day):
                 continue
             if site_key and site_key not in name:
                 continue
-            if ymd in name or alt in name:
+            if ymd in name:
                 matches.append(os.path.join(directory, name))
 
     matches.sort()

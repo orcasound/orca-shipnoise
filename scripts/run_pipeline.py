@@ -136,12 +136,13 @@ def collect_ais(api_key):
         p.wait(timeout=10)
 
 
-def get_timestamps():
-    """Run preprocessing to get latest HLS timestamps from S3."""
+def get_timestamps(target_date_str):
+    """Run preprocessing to get HLS timestamps for target_date from S3."""
     print("\n[orchestrator] === GET TIMESTAMPS ===")
     run_cmd(
-        [sys.executable, str(SCRIPTS_DIR / "preprocess" / "get_latest_timestamp.py")],
-        label="get_latest_timestamp.py",
+        [sys.executable, str(SCRIPTS_DIR / "preprocess" / "get_latest_timestamp.py"),
+         "--date", target_date_str],
+        label=f"get_latest_timestamp.py --date {target_date_str}",
     )
 
 
@@ -290,7 +291,7 @@ def main():
             print(f"\n[orchestrator] >>> DAILY PROCESSING TRIGGERED for {target_date} <<<")
 
             # Get audio timestamps from S3
-            get_timestamps()
+            get_timestamps(target_date)
 
             if not _shutdown:
                 # Run full processing pipeline

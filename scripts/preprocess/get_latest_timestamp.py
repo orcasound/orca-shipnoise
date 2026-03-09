@@ -1,35 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Export latest *complete* day timestamps for all Orcasound sites.
-Each site's most recent *complete* day is the penultimate HLS folder.
+Export timestamps for a target UTC date for all Orcasound sites.
+
+Handles multiple HLS sessions per day (e.g. after stream restarts).
 Results are stored under:
-    Sites/timestamps/<date>/<site>_<folder_id>_<date>_timestamps_UTC.txt
+    Sites/timestamps/<YYYYMMDD>/<site>_<YYYYMMDD>_timestamps_UTC.txt
 """
 
+import argparse
 import os
 import re
 import boto3
 from botocore import UNSIGNED
 from botocore.client import Config
-from datetime import timedelta, timezone
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List
-import datetime
 
 # ---------- SETTINGS ----------
 BUCKET = "audio-orcasound-net"
 SEG_DUR = 10  # seconds per .ts segment
-STALE_THRESHOLD_DAYS = 7  # warn if latest timestamps are older than this
+STALE_THRESHOLD_DAYS = 7
 
-# auto-detect project base
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../Sites"))
 OUTPUT_ROOT = os.path.join(BASE_DIR, "timestamps")
 
 SITES = {
-    "bush_point":     "rpi_bush_point/hls/",
-    "orcasound_lab":  "rpi_orcasound_lab/hls/",
-    "port_townsend":  "rpi_port_townsend/hls/",
-    "sunset_bay":     "rpi_sunset_bay/hls/",
+    "bush_point":    "rpi_bush_point/hls/",
+    "orcasound_lab": "rpi_orcasound_lab/hls/",
+    "port_townsend": "rpi_port_townsend/hls/",
+    "sunset_bay":    "rpi_sunset_bay/hls/",
 }
 
 # ---------- S3 CLIENT ----------
@@ -37,10 +37,7 @@ s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
 _NUMERIC_RE = re.compile(r".*/hls/(\d+)/$")
 
 
-# ---------- FUNCTIONS ----------
-
 def list_numeric_subfolders(bucket: str, base_prefix: str) -> List[str]:
-    """List numeric subfolders under rpi_<site>/hls/."""
     paginator = s3.get_paginator("list_objects_v2")
     folders = []
     for page in paginator.paginate(Bucket=bucket, Prefix=base_prefix, Delimiter="/"):
@@ -52,84 +49,89 @@ def list_numeric_subfolders(bucket: str, base_prefix: str) -> List[str]:
     return folders
 
 
-def pick_latest_complete_folder(bucket: str, base_prefix: str) -> Optional[str]:
-    """Pick the second newest numeric folder as the 'latest complete' day."""
-    folders = list_numeric_subfolders(bucket, base_prefix)
-    if len(folders) < 2:
-        return None
-    return folders[-2]
-
-
-def export_timestamp_for_prefix(bucket: str, full_prefix: str, seg_dur: int):
-    """Export all .ts timestamps (UTC) under given prefix."""
+def fetch_timestamps_for_folder(bucket: str, full_prefix: str) -> List[str]:
+    """Fetch all .ts timestamps under a given S3 prefix."""
     paginator = s3.get_paginator("list_objects_v2")
     lines = []
-    first_time = None
-
-    print(f"Listing objects under: s3://{bucket}/{full_prefix}")
-
     for page in paginator.paginate(Bucket=bucket, Prefix=full_prefix):
         for obj in page.get("Contents", []):
             key = obj["Key"]
             if not key.endswith(".ts"):
                 continue
             start_utc = obj["LastModified"].astimezone(timezone.utc)
-            end_utc = start_utc + timedelta(seconds=seg_dur)
+            end_utc = start_utc + timedelta(seconds=SEG_DUR)
             lines.append(f"{key},{start_utc.isoformat()},{end_utc.isoformat()}")
-            if first_time is None:
-                first_time = start_utc  # use first .ts as start-of-day marker
-
-    lines.sort(key=lambda x: x.split(",")[1])
-
-    # determine date from first .ts timestamp
-    if first_time:
-        date_str = first_time.date().isoformat()
-    else:
-        date_str = datetime.date.today().isoformat()
-
-    return lines, date_str
+    return lines
 
 
-def export_latest_complete_for_site(site: str, base_prefix: str):
-    """Pick latest complete folder and export timestamp file with date in name."""
-    folder_id = pick_latest_complete_folder(BUCKET, base_prefix)
-    if not folder_id:
-        print(f"⚠️ Not enough folders for site={site}")
+def export_for_date(site: str, base_prefix: str, target_date: date) -> Optional[str]:
+    """Find all HLS sessions for target_date and save combined timestamps."""
+    all_folders = list_numeric_subfolders(BUCKET, base_prefix)
+
+    # Include sessions started within [target_date - 1 day, target_date + 1 day)
+    # to catch PST sessions that started before UTC midnight of target_date
+    window_start = datetime.combine(
+        target_date - timedelta(days=1), datetime.min.time()
+    ).replace(tzinfo=timezone.utc)
+    window_end = datetime.combine(
+        target_date + timedelta(days=1), datetime.min.time()
+    ).replace(tzinfo=timezone.utc)
+
+    matching = [
+        fid for fid in all_folders
+        if window_start <= datetime.fromtimestamp(int(fid), tz=timezone.utc) < window_end
+    ]
+
+    if not matching:
+        print(f"⚠️ No HLS sessions found for {site} on {target_date}")
         return None
 
-    full_prefix = f"{base_prefix}{folder_id}/"
-    lines, date_str = export_timestamp_for_prefix(BUCKET, full_prefix, SEG_DUR)
+    print(f"  Found {len(matching)} session(s): {matching}")
 
-    # ✅ new path: /Sites/timestamps/<date>/
+    all_lines = []
+    for fid in matching:
+        lines = fetch_timestamps_for_folder(BUCKET, f"{base_prefix}{fid}/")
+        all_lines.extend(lines)
+
+    if not all_lines:
+        print(f"⚠️ No .ts files found for {site} on {target_date}")
+        return None
+
+    all_lines.sort(key=lambda x: x.split(",")[1])
+
+    date_str = target_date.strftime("%Y%m%d")
     out_dir = os.path.join(OUTPUT_ROOT, date_str)
     os.makedirs(out_dir, exist_ok=True)
 
-    out_file = os.path.join(
-        out_dir,
-        f"{site}_{folder_id}_{date_str}_timestamps_UTC.txt"
-    )
-
-    content = "\n".join(lines)
+    out_file = os.path.join(out_dir, f"{site}_{date_str}_timestamps_UTC.txt")
     with open(out_file, "w", encoding="utf-8") as f:
-        f.write(content)
+        f.write("\n".join(all_lines))
 
-    print(f"✅ Saved {len(lines)} entries → {out_file}")
+    print(f"✅ Saved {len(all_lines)} entries → {out_file}")
 
-    days_old = (datetime.date.today() - datetime.date.fromisoformat(date_str)).days
+    days_old = (date.today() - target_date).days
     if days_old > STALE_THRESHOLD_DAYS:
-        print(f"⚠️  WARNING: {site} timestamps are {days_old} days old ({date_str}). "
+        print(f"⚠️  WARNING: {site} timestamps are {days_old} days old. "
               f"Hydrophone may be offline.")
 
     return out_file
 
 
-# ---------- MAIN ----------
 def main():
-    print("🚀 Exporting latest *complete* day timestamps for all sites…")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--date", help="Target UTC date YYYYMMDD (default: yesterday)")
+    args = parser.parse_args()
+
+    if args.date:
+        target_date = datetime.strptime(args.date, "%Y%m%d").date()
+    else:
+        target_date = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+
+    print(f"🚀 Exporting timestamps for {target_date.strftime('%Y%m%d')}…")
     results = []
     for site, prefix in SITES.items():
         print(f"\n▶ {site}")
-        path = export_latest_complete_for_site(site, prefix)
+        path = export_for_date(site, prefix, target_date)
         if path:
             results.append(path)
 
