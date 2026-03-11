@@ -12,6 +12,7 @@ Logic:
 """
 
 import os
+import sys
 import argparse
 import tempfile
 import requests
@@ -21,6 +22,9 @@ import pandas as pd
 import time
 import shutil
 from scipy.io import wavfile
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from sites import KEY_TO_S3, KEY_TO_DATA_DIR, CONFIDENCE_THRESHOLDS, S3_BUCKET
 
 # Import DB function
 from lib.db import insert_detection
@@ -79,19 +83,21 @@ def compute_lowfreq_ratio(wav_path: str):
     except Exception:
         return np.nan, np.nan, np.nan, np.nan
 
-def classify_confidence(ratio, entropy=None, delta_L=None, site_name=None):
-    if site_name == "Sunset_Bay":
-        if np.isnan(ratio): return "none"
-        if ratio > 2 or (delta_L is not None and delta_L > 4): return "high"
-        elif ratio > 0.2 or (delta_L is not None and delta_L > -2): return "medium"
-        elif ratio > 0.05 or (delta_L is not None and delta_L > -8): return "low"
-        else: return "none"
-    
+_DEFAULT_CONFIDENCE_THRESHOLDS = {
+    "high":   {"ratio": 5.0, "delta_L": 6},
+    "medium": {"ratio": 0.5, "delta_L": -1},
+}
+
+def classify_confidence(ratio, entropy=None, delta_L=None, thresholds=None):
     if np.isnan(ratio): return "none"
-    if ratio > 5 or (delta_L is not None and delta_L > 6): return "high"
-    elif ratio > 0.5 or (delta_L is not None and delta_L > -1): return "medium"
-    elif ratio >= 0.1 or (delta_L is not None and delta_L > -6): return "none"
-    else: return "none"
+    t = thresholds if thresholds is not None else _DEFAULT_CONFIDENCE_THRESHOLDS
+    for level in ("high", "medium", "low"):
+        tier = t.get(level)
+        if tier is None:
+            continue
+        if ratio > tier["ratio"] or (delta_L is not None and delta_L > tier["delta_L"]):
+            return level
+    return "none"
 
 # ---------------- Network Logic (Retry) ----------------
 
@@ -99,7 +105,7 @@ def download_ts_retry(s3_prefix: str, folder: str, seg_int: int, tmp_dir: str, v
     """
     Downloads segment with RETRY logic. Returns local path or None.
     """
-    base_url = f"https://audio-orcasound-net.s3.amazonaws.com/{s3_prefix}/hls/{folder}"
+    base_url = f"https://{S3_BUCKET}.s3.amazonaws.com/{s3_prefix}/hls/{folder}"
     local = os.path.join(tmp_dir, f"{folder}_live{seg_int}.ts")
     
     # Try plain and padded (live1.ts vs live001.ts)
@@ -154,7 +160,6 @@ def parse_segment_ranges(seg_raw: str):
 # ---------------- Processing ----------------
 
 def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
-    site_name = site.replace("_", " ").title().replace(" ", "_")
     print(f"📄 Processing {os.path.basename(csv_path)}")
     
     df = pd.read_csv(csv_path)
@@ -176,13 +181,26 @@ def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
                     if not ts_path: continue
                     
                     wav_path = ts_path.replace(".ts", ".wav")
-                    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", ts_path, "-ac", "1", "-ar", "48000", wav_path], check=False)
+                    result = subprocess.run(
+                        ["ffmpeg", "-loglevel", "error", "-y", "-i", ts_path, "-ac", "1", "-ar", "48000", wav_path],
+                        check=False,
+                    )
+                    if result.returncode != 0:
+                        vprint(verbose, f"      ⚠️ ffmpeg failed for {os.path.basename(ts_path)}")
+                        continue
                     wav_files.append((folder, seg_int, wav_path))
 
             if not wav_files: continue
 
-            # 2. Find Loudest
-            loud_folder, loud_seg_int, loud_wav = max(wav_files, key=lambda t: rms_db(t[2])[0])
+            # 2. Find Loudest (filter NaN rms before comparing)
+            scored = [(f, s, w, rms_db(w)[0]) for f, s, w in wav_files]
+            valid = [(f, s, w, rms) for f, s, w, rms in scored if not np.isnan(rms)]
+            if not valid: continue
+            loud_folder, loud_seg_int, loud_wav, _ = max(valid, key=lambda t: t[3])
+
+            if loud_seg_int < 1:
+                vprint(verbose, "   ⚠️ Loudest segment is #0 (no previous segment). Skipping.")
+                continue
 
             # 3. Confidence Check
             rms, mean_db, max_db = rms_db(loud_wav)
@@ -196,7 +214,7 @@ def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
 
 
             ratio, entropy, delta_L, ship_index = compute_lowfreq_ratio(loud_wav)
-            conf = classify_confidence(ratio, entropy, delta_L, site_name)
+            conf = classify_confidence(ratio, entropy, delta_L, CONFIDENCE_THRESHOLDS.get(site))
 
             # Warning: Bush Point silent files (Jan 4) might fail this check and be skipped!
             # If you want to force test, comment out the next two lines.
@@ -256,17 +274,11 @@ def main():
     args = parser.parse_args()
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../Sites"))
-    sites = {
-        "bush_point": "rpi_bush_point",
-        "orcasound_lab": "rpi_orcasound_lab",
-        "port_townsend": "rpi_port_townsend",
-        "sunset_bay": "rpi_sunset_bay",
-    }
 
-    target_sites = sites.keys() if args.site == "all" else [args.site]
-    
+    target_sites = KEY_TO_S3.keys() if args.site == "all" else [args.site]
+
     for site in target_sites:
-        site_dir = os.path.join(base_dir, f"{site}_data")
+        site_dir = os.path.join(base_dir, KEY_TO_DATA_DIR[site])
         if not os.path.isdir(site_dir): continue
 
         dates = args.date if args.date else []
@@ -280,7 +292,7 @@ def main():
             
             for fname in sorted(os.listdir(csv_dir)):
                 if fname.endswith("_windowed_merged.csv"):
-                    process_csv(site, site_dir, sites[site], os.path.join(csv_dir, fname), args.verbose)
+                    process_csv(site, site_dir, KEY_TO_S3[site], os.path.join(csv_dir, fname), args.verbose)
 
 if __name__ == "__main__":
     main()

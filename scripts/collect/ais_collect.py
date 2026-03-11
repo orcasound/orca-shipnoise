@@ -2,12 +2,13 @@ import os, json, math, asyncio, websockets, argparse, requests
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from sites import ORCASITE_GRAPHQL, AISSTREAM_WS
 
 load_dotenv()
 
 # ============ CONFIG ============
-ORCASITE_GRAPHQL = "https://live.orcasound.net/graphql"
-AISSTREAM_WS = "wss://stream.aisstream.io/v0/stream"
 MAX_RETRIES = 5
 
 # ============ ENV ============

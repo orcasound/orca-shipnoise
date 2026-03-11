@@ -10,14 +10,6 @@ import sys
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 
-# === Constants ===
-RADIUS_M = 30000
-CPA_MAX_M = 20000
-MIN_SOG_KT = 2
-MIN_POINTS = 3
-MIN_DWELL_SEC = 60
-HIGH_QUALITY_THRESHOLD = 1000
-
 # === Project root ===
 def find_project_root(start_path):
     cur = os.path.abspath(start_path)
@@ -31,6 +23,8 @@ def find_project_root(start_path):
     raise RuntimeError("Cannot locate project root containing 'Sites'")
 
 PROJECT_ROOT = find_project_root(os.path.dirname(__file__))
+sys.path.insert(0, PROJECT_ROOT)
+from sites import RADIUS_M, CPA_MAX_M, MIN_SOG_KT, MIN_POINTS, MIN_DWELL_SEC, HIGH_QUALITY_THRESHOLD
 
 # === CLI ===
 def parse_args():

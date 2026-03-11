@@ -10,3 +10,4 @@ scipy
 soundfile
 websockets
 requests
+pytest

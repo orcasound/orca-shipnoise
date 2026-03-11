@@ -36,15 +36,15 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPTS_DIR.parent
 SITES_DIR = PROJECT_ROOT / "Sites"
 
+sys.path.insert(0, str(SCRIPTS_DIR))
+from sites import COLLECT_SLUGS, PROCESS_KEYS, KEEP_DAYS
+
 # Hour (UTC) at which to trigger daily processing
 # 10:00 UTC = 2:00 AM PST — ensures full day of audio + AIS data is available
 PROCESS_HOUR_UTC = int(os.getenv("PROCESS_HOUR_UTC", "10"))
 
-# All sites collected in a single WebSocket connection
-COLLECT_SITES = ["bush-point", "orcasound-lab", "port-townsend", "sunset-bay"]
-
-# Site keys used by processing scripts (underscored)
-PROCESS_SITES = ["bush_point", "orcasound_lab", "port_townsend", "sunset_bay"]
+COLLECT_SITES = COLLECT_SLUGS
+PROCESS_SITES = PROCESS_KEYS
 
 # Track which dates have been fully processed to avoid duplicate DB inserts
 _processed_dates = set()
@@ -195,7 +195,6 @@ def process_pipeline(target_date_str):
     )
 
 
-KEEP_DAYS = 5  # keep this many recent days of raw data on disk
 
 
 def cleanup_old_data():
