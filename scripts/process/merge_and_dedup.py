@@ -19,17 +19,12 @@ import numpy as np
 from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-from sites import KEY_TO_DATA_DIR, CPA_OVERRIDES
+from sites import KEY_TO_DATA_DIR, CPA_OVERRIDES, DEFAULT_CPA_MAX_M, LARGE_SHIP_CPA_MAX_M, SMALL_SHIP_CPA_MAX_M, LARGE_SHIP_MIN_M, SMALL_SHIP_MAX_M
 
 # ===== CONFIGURATION =====
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 SITES_DIR = os.path.join(PROJECT_ROOT, "Sites")
 SITES = list(KEY_TO_DATA_DIR.values())
-
-# ===== DISTANCE RULES =====
-DEFAULT_CPA_MAX_M = 5000     # Normal ships (≤150 m)
-LARGE_SHIP_CPA_MAX_M = 8000  # Large vessels (>150 m)
-SMALL_SHIP_CPA_MAX_M = 3000  # Small / unknown ships
 
 
 def is_acoustically_relevant(row):
@@ -46,9 +41,9 @@ def is_acoustically_relevant(row):
     if pd.isna(cpa):
         return False
     if not pd.isna(length):
-        if length > 150:
+        if length > LARGE_SHIP_MIN_M:
             return cpa <= large_max
-        elif length < 50:
+        elif length < SMALL_SHIP_MAX_M:
             return cpa <= small_max
     return cpa <= default_max
 

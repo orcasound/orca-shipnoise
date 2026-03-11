@@ -19,12 +19,11 @@ from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from sites import KEY_TO_HLS
+from sites import KEY_TO_HLS, S3_BUCKET, STALE_THRESHOLD_DAYS
 
 # ---------- SETTINGS ----------
-BUCKET = "audio-orcasound-net"
+BUCKET = S3_BUCKET
 SEG_DUR = 10  # seconds per .ts segment
-STALE_THRESHOLD_DAYS = 7
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../Sites"))
 OUTPUT_ROOT = os.path.join(BASE_DIR, "timestamps")
