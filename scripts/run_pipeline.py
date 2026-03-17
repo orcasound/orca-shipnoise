@@ -127,13 +127,22 @@ def collect_ais(api_key):
     print(f"[orchestrator] Starting collection for all sites: {COLLECT_SITES}")
     p = subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), env=child_env)
 
-    try:
-        p.wait(timeout=duration_int + 60)
-        print(f"[orchestrator] Collection done (exit={p.returncode})")
-    except subprocess.TimeoutExpired:
-        print("[orchestrator] Collection timeout, terminating")
-        p.terminate()
-        p.wait(timeout=10)
+    deadline = time.time() + duration_int + 60
+    while True:
+        if _shutdown:
+            print("[orchestrator] Shutdown requested, terminating collection")
+            p.terminate()
+            p.wait(timeout=10)
+            return
+        if p.poll() is not None:
+            print(f"[orchestrator] Collection done (exit={p.returncode})")
+            break
+        if time.time() > deadline:
+            print("[orchestrator] Collection timeout, terminating")
+            p.terminate()
+            p.wait(timeout=10)
+            break
+        time.sleep(1)
 
 
 def get_timestamps(target_date_str):
