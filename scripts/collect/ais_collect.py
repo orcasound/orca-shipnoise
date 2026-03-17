@@ -1,4 +1,4 @@
-import os, json, math, asyncio, websockets, argparse, requests
+import os, json, math, asyncio, websockets, argparse, requests, statistics
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
@@ -87,6 +87,48 @@ def point_in_bbox(lat, lon, bbox):
     return (bbox[0][0] <= lat <= bbox[1][0] and
             bbox[0][1] <= lon <= bbox[1][1])
 
+# ============ BASELINE / ANOMALY DETECTION ============
+def compute_baseline(site_slugs: list) -> dict:
+    """Scan historical .jsonl files to compute per-site message count statistics."""
+    baselines = {}
+    for site in site_slugs:
+        base_dir = get_base_dir(site)
+        counts = []
+        for path in sorted(base_dir.rglob("ais_raw_*.jsonl")):
+            try:
+                with path.open() as f:
+                    n = sum(1 for _ in f) - 1  # subtract _meta header line
+                if n > 0:
+                    counts.append(n)
+            except Exception:
+                pass
+        if len(counts) >= 3:
+            mean = statistics.mean(counts)
+            stdev = statistics.stdev(counts)
+            baselines[site] = {"mean": mean, "stdev": stdev, "n": len(counts)}
+    return baselines
+
+
+def check_anomalies(site_data: dict, baselines: dict):
+    """Print baseline comparison and warn if any site count looks unusually low."""
+    for site, info in site_data.items():
+        count = info["count"]
+        if site not in baselines:
+            print(f"[baseline] site={site} count={count} status=NO_HISTORY")
+            continue
+        b = baselines[site]
+        threshold = max(0, b["mean"] - 2 * b["stdev"])
+        status = "LOW" if count < threshold else "OK"
+        print(
+            f"[baseline] site={site} count={count} mean={b['mean']:.0f} "
+            f"stdev={b['stdev']:.0f} threshold={threshold:.0f} status={status}"
+        )
+        if status == "LOW":
+            print(
+                f"[anomaly] WARNING site={site}: {count} msgs below threshold {threshold:.0f} "
+                f"(mean={b['mean']:.0f}±{b['stdev']:.0f}, n={b['n']})"
+            )
+
 # ============ COLLECT ============
 async def collect_once(sites_info: dict, duration_secs: int, radius_km: float):
     """
@@ -172,7 +214,17 @@ async def collect_once(sites_info: dict, duration_secs: int, radius_km: float):
     finally:
         for site, f in file_handles.items():
             f.close()
-            print(f"Saved: {site_data[site]['out_path']}  (messages={site_data[site]['count']})")
+            count = site_data[site]["count"]
+            path = site_data[site]["out_path"]
+            if count == 0:
+                path.unlink(missing_ok=True)
+                print(f"Removed empty file: {path}")
+            else:
+                print(f"Saved: {path}  (messages={count})")
+
+        # Anomaly detection: compare counts to historical baseline
+        baselines = compute_baseline(list(site_data.keys()))
+        check_anomalies(site_data, baselines)
 
 # ============ MAIN ============
 async def main():

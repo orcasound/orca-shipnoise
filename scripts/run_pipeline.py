@@ -148,10 +148,12 @@ def collect_ais(api_key):
 def get_timestamps():
     """Run preprocessing to get latest HLS timestamps from S3."""
     print("\n[orchestrator] === GET TIMESTAMPS ===")
+    t0 = time.time()
     run_cmd(
         [sys.executable, str(SCRIPTS_DIR / "preprocess" / "get_latest_timestamp.py")],
         label="get_latest_timestamp.py",
     )
+    print(f"[orchestrator] step=get_timestamps elapsed={time.time()-t0:.1f}s")
 
 
 def process_pipeline(target_date_str):
@@ -163,11 +165,13 @@ def process_pipeline(target_date_str):
         if _shutdown:
             return
         site_slug = site.replace("_", "-")
-        run_cmd(
+        t0 = time.time()
+        ok = run_cmd(
             [sys.executable, str(SCRIPTS_DIR / "process" / "ais_to_transits.py"),
              "--site", site_slug, "--date", target_date_str],
             label=f"ais_to_transits --site {site_slug} --date {target_date_str}",
         )
+        print(f"[orchestrator] step=ais_to_transits site={site_slug} ok={ok} elapsed={time.time()-t0:.1f}s")
 
     if _shutdown:
         return
@@ -176,31 +180,37 @@ def process_pipeline(target_date_str):
     for site in PROCESS_SITES:
         if _shutdown:
             return
-        run_cmd(
+        t0 = time.time()
+        ok = run_cmd(
             [sys.executable, str(SCRIPTS_DIR / "process" / "match_all_transits_to_ts.py"),
              "--site", site, "--date", target_date_str],
             label=f"match_all_transits_to_ts --site {site} --date {target_date_str}",
         )
+        print(f"[orchestrator] step=match_transits site={site} ok={ok} elapsed={time.time()-t0:.1f}s")
 
     if _shutdown:
         return
 
     # Step 3: Merge and deduplicate
-    run_cmd(
+    t0 = time.time()
+    ok = run_cmd(
         [sys.executable, str(SCRIPTS_DIR / "process" / "merge_and_dedup.py"),
          "--date", target_date_str],
         label=f"merge_and_dedup --date {target_date_str}",
     )
+    print(f"[orchestrator] step=merge_and_dedup ok={ok} elapsed={time.time()-t0:.1f}s")
 
     if _shutdown:
         return
 
     # Step 4: Extract loudest segments and write to DB
-    run_cmd(
+    t0 = time.time()
+    ok = run_cmd(
         [sys.executable, str(SCRIPTS_DIR / "process" / "extract_loudest_segment.py"),
          "--site", "all", "--date", target_date_str, "--verbose"],
         label=f"extract_loudest_segment --site all --date {target_date_str}",
     )
+    print(f"[orchestrator] step=extract_loudest_segment ok={ok} elapsed={time.time()-t0:.1f}s")
 
 
 KEEP_DAYS = 5  # keep this many recent days of raw data on disk
