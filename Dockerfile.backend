@@ -2,16 +2,27 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ENV PYTHONUNBUFFERED=1
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsndfile1 \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements.txt backend-requirements.txt
+COPY scripts/requirements.txt scripts-requirements.txt
+RUN pip install --no-cache-dir -r backend-requirements.txt -r scripts-requirements.txt
 
-COPY backend/ .
+COPY backend/ ./backend/
+COPY scripts/ ./scripts/
+
+RUN mkdir -p /app/Sites
+
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
 EXPOSE 8080
 
-CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["/app/start.sh"]
