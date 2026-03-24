@@ -11,14 +11,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Litestream
+RUN curl -L https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.tar.gz \
+    | tar -xz -C /usr/local/bin
+
 COPY backend/requirements.txt backend-requirements.txt
 COPY scripts/requirements.txt scripts-requirements.txt
 RUN pip install --no-cache-dir -r backend-requirements.txt -r scripts-requirements.txt
 
 COPY backend/ ./backend/
 COPY scripts/ ./scripts/
+COPY litestream.yml /app/litestream.yml
 
-RUN mkdir -p /app/Sites
+RUN mkdir -p /app/Sites /app/data
 
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
