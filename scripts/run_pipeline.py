@@ -207,7 +207,7 @@ def process_pipeline(target_date_str):
     t0 = time.time()
     ok = run_cmd(
         [sys.executable, str(SCRIPTS_DIR / "process" / "extract_loudest_segment.py"),
-         "--site", "all", "--date", target_date_str, "--verbose"],
+         "--site", "all", "--date", target_date_str, "--verbose", "--sites-dir", str(SITES_DIR)],
         label=f"extract_loudest_segment --site all --date {target_date_str}",
     )
     print(f"[orchestrator] step=extract_loudest_segment ok={ok} elapsed={time.time()-t0:.1f}s")

@@ -31,7 +31,7 @@ def is_acoustically_relevant(row):
     cpa = row.get("cpa_distance_m", np.nan)
     length = row.get("length_m", np.nan)
     site_raw = str(row.get("site_name", "")).strip()
-    site_key = site_raw.replace("-", "_").lower() if site_raw else None
+    site_key = site_raw.replace("-", "_").lower().removesuffix("_data") if site_raw else None
     limits = CPA_OVERRIDES.get(site_key, {})
     default_max = limits.get("default", DEFAULT_CPA_MAX_M)
     large_max = limits.get("large", LARGE_SHIP_CPA_MAX_M)
