@@ -157,7 +157,7 @@ def process_pipeline(target_date_str):
         site_slug = site.replace("_", "-")
         run_cmd(
             [sys.executable, str(SCRIPTS_DIR / "process" / "ais_to_transits.py"),
-             "--site", site_slug, "--date", target_date_str],
+             "--site", site_slug, "--date", target_date_str, "--sites-dir", str(SITES_DIR)],
             label=f"ais_to_transits --site {site_slug} --date {target_date_str}",
         )
 

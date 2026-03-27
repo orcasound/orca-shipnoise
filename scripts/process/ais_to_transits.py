@@ -10,20 +10,8 @@ import sys
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 
-# === Project root ===
-def find_project_root(start_path):
-    cur = os.path.abspath(start_path)
-    for _ in range(6):
-        if os.path.isdir(os.path.join(cur, "Sites")):
-            return cur
-        parent = os.path.dirname(cur)
-        if parent == cur:
-            break
-        cur = parent
-    raise RuntimeError("Cannot locate project root containing 'Sites'")
-
-PROJECT_ROOT = find_project_root(os.path.dirname(__file__))
-sys.path.insert(0, PROJECT_ROOT)
+SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, SCRIPTS_DIR)
 from sites import RADIUS_M, CPA_MAX_M, MIN_SOG_KT, MIN_POINTS, MIN_DWELL_SEC, HIGH_QUALITY_THRESHOLD
 
 # === CLI ===
@@ -32,6 +20,7 @@ def parse_args():
     p.add_argument("--site", required=True, help="Site slug, e.g. bush-point")
     p.add_argument("--date", help="UTC date YYYYMMDD (default: yesterday)")
     p.add_argument("--all", action="store_true", help="Process all available dates")
+    p.add_argument("--sites-dir", required=True, help="Path to Sites directory")
     return p.parse_args()
 
 # === Geometry ===
@@ -211,7 +200,7 @@ def main():
     site = args.site
     slug = site.replace("-", "_").lower()
 
-    sites_root = os.path.join(PROJECT_ROOT, "Sites")
+    sites_root = args.sites_dir
     base_dir = None
     for name in os.listdir(sites_root):
         if not name.lower().endswith("_data"):
