@@ -23,10 +23,7 @@ import time
 import shutil
 from scipy.io import wavfile
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-from sites import KEY_TO_S3, KEY_TO_DATA_DIR, CONFIDENCE_THRESHOLDS, S3_BUCKET
-
-# Import DB function
+from config.sites import KEY_TO_S3, KEY_TO_DATA_DIR, CONFIDENCE_THRESHOLDS, S3_BUCKET
 from lib.db import insert_detection
 
 # ---------------- Utility ----------------

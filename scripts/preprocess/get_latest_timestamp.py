@@ -18,8 +18,7 @@ from botocore.client import Config
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from sites import KEY_TO_HLS, S3_BUCKET, STALE_THRESHOLD_DAYS
+from config.sites import KEY_TO_HLS, S3_BUCKET, STALE_THRESHOLD_DAYS
 
 # ---------- SETTINGS ----------
 BUCKET = S3_BUCKET
