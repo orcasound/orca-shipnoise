@@ -15,8 +15,7 @@ import sys
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-from sites import KEY_TO_DATA_DIR
+from config.sites import KEY_TO_DATA_DIR
 
 # === CONFIGURATION ===
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))

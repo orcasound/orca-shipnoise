@@ -10,9 +10,7 @@ import sys
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 
-SCRIPTS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, SCRIPTS_DIR)
-from sites import RADIUS_M, CPA_MAX_M, MIN_SOG_KT, MIN_POINTS, MIN_DWELL_SEC, HIGH_QUALITY_THRESHOLD
+from config.sites import RADIUS_M, CPA_MAX_M, MIN_SOG_KT, MIN_POINTS, MIN_DWELL_SEC, HIGH_QUALITY_THRESHOLD
 
 # === CLI ===
 def parse_args():

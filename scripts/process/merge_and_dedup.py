@@ -18,8 +18,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timezone, timedelta
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-from sites import KEY_TO_DATA_DIR, CPA_OVERRIDES, DEFAULT_CPA_MAX_M, LARGE_SHIP_CPA_MAX_M, SMALL_SHIP_CPA_MAX_M, LARGE_SHIP_MIN_M, SMALL_SHIP_MAX_M
+from config.sites import KEY_TO_DATA_DIR, CPA_OVERRIDES, DEFAULT_CPA_MAX_M, LARGE_SHIP_CPA_MAX_M, SMALL_SHIP_CPA_MAX_M, LARGE_SHIP_MIN_M, SMALL_SHIP_MAX_M
 
 # ===== CONFIGURATION =====
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))

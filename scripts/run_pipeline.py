@@ -36,8 +36,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPTS_DIR.parent
 SITES_DIR = PROJECT_ROOT / "Sites"
 
-sys.path.insert(0, str(SCRIPTS_DIR))
-from sites import COLLECT_SLUGS, PROCESS_KEYS, KEEP_DAYS
+from config.sites import COLLECT_SLUGS, PROCESS_KEYS, KEEP_DAYS
 
 # Hour (UTC) at which to trigger daily processing
 # 10:00 UTC = 2:00 AM PST — ensures full day of audio + AIS data is available

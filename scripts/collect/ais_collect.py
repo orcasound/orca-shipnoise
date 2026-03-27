@@ -3,8 +3,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from sites import ORCASITE_GRAPHQL, AISSTREAM_WS
+from config.sites import ORCASITE_GRAPHQL, AISSTREAM_WS
 
 load_dotenv()
 
