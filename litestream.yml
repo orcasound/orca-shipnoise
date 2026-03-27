@@ -1,7 +1,7 @@
 dbs:
   - path: /app/data/shipnoise.db
     replicas:
-      - url: s3://orcasound-shipnoise/shipnoise.db
+      - url: s3://${BUCKET_NAME}/shipnoise.db
         access-key-id: ${AWS_ACCESS_KEY_ID}
         secret-access-key: ${AWS_SECRET_ACCESS_KEY}
-        region: us-east-2
+        endpoint: ${AWS_ENDPOINT_URL_S3}
