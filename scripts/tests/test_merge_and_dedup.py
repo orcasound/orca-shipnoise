@@ -48,7 +48,7 @@ class TestIsAcousticallyRelevant:
 
     def test_sunset_bay_wider_gate(self):
         # Sunset Bay override: default 7500m
-        row = make_row(cpa_distance_m=7000, length_m=100, site_name="sunset_bay_data")
+        row = make_row(cpa_distance_m=7000, length_m=100, site_name="sunset-bay")
         assert is_acoustically_relevant(row) is True
 
     def test_unknown_length_uses_default(self):
