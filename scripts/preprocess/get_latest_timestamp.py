@@ -30,7 +30,12 @@ OUTPUT_ROOT = os.path.join(BASE_DIR, "timestamps")
 SITES = KEY_TO_HLS
 
 # ---------- S3 CLIENT ----------
-s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))
+s3 = boto3.client(
+    "s3",
+    config=Config(signature_version=UNSIGNED),
+    endpoint_url="https://s3.us-west-2.amazonaws.com",
+    region_name="us-west-2",
+)
 _NUMERIC_RE = re.compile(r".*/hls/(\d+)/$")
 
 

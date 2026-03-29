@@ -59,3 +59,27 @@ class TestSiteDirectoryNaming:
                 f"match_all_transits expects '{folder_name}' "
                 f"but ais_collect creates '{expected}'"
             )
+
+    def test_all_process_scripts_use_key_to_data_dir(self):
+        """All process scripts must derive site dirs from KEY_TO_DATA_DIR, not hardcoded strings."""
+        from config.sites import KEY_TO_DATA_DIR, COLLECT_SLUGS
+
+        # Verify KEY_TO_DATA_DIR matches what ais_collect creates
+        for key, data_dir in KEY_TO_DATA_DIR.items():
+            slug = next(s for s in COLLECT_SLUGS if s.replace("-", "_") == key)
+            expected = f"{slug.replace('-', '_')}_data"
+            assert data_dir == expected, (
+                f"KEY_TO_DATA_DIR['{key}'] = '{data_dir}' "
+                f"but ais_collect would create '{expected}'"
+            )
+
+        # merge_and_dedup and match_all_transits_to_ts must use the same dirs
+        from merge_and_dedup import SITES as MERGE_SITES
+        from match_all_transits_to_ts import SITES as MATCH_SITES
+
+        assert set(MERGE_SITES) == set(KEY_TO_DATA_DIR.values()), (
+            f"merge_and_dedup SITES {set(MERGE_SITES)} != KEY_TO_DATA_DIR values {set(KEY_TO_DATA_DIR.values())}"
+        )
+        assert set(MATCH_SITES.values()) == set(KEY_TO_DATA_DIR.values()), (
+            f"match_all_transits SITES {set(MATCH_SITES.values())} != KEY_TO_DATA_DIR values {set(KEY_TO_DATA_DIR.values())}"
+        )

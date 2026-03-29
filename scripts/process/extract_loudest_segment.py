@@ -268,9 +268,10 @@ def main():
     parser.add_argument("--date", nargs="*")
     parser.add_argument("--target_date", help="Ignored, compatibility only")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--sites-dir", default=None)
     args = parser.parse_args()
 
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../Sites"))
+    base_dir = args.sites_dir or os.path.abspath(os.path.join(os.path.dirname(__file__), "../../Sites"))
 
     target_sites = KEY_TO_S3.keys() if args.site == "all" else [args.site]
 
