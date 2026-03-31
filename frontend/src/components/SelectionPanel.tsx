@@ -208,10 +208,6 @@ const normalizeClip = (clip: ClipApiResult): RecordingEntry => {
     (siteKey && SITE_LABELS[siteKey]) ||
     (clip.site ? formatTitleCase(clip.site.replace(/[_\s]+/g, ' ')) : 'Unknown site');
 
-  const audioSources = Array.isArray(clip.audio_urls)
-    ? clip.audio_urls.filter((url) => typeof url === 'string' && url.trim().length > 0)
-    : [];
-
   const vesselName =
     formatShipName(clip.shipname) ??
     formatShipName(clip.mmsi ?? '') ??
@@ -226,7 +222,6 @@ const normalizeClip = (clip: ClipApiResult): RecordingEntry => {
     date: clip.date_utc,
     time: undefined,
     timestamp: clip.t_cpa ?? null,
-    audioUrls: audioSources,
     cpaDistanceMeters: clip.cpa_distance_m ?? undefined,
     noiseLevelDb: undefined,
     // HLS playback fields

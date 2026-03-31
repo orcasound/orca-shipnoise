@@ -53,3 +53,4 @@ amplify-gradle-config.json
 amplifytools.xcconfig
 .secret-*
 amplify/team-provider-info.json
+sites_backup.tar.gz

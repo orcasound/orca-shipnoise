@@ -12,7 +12,6 @@ Logic:
 """
 
 import os
-import sys
 import argparse
 import tempfile
 import requests
@@ -23,7 +22,7 @@ import time
 import shutil
 from scipy.io import wavfile
 
-from config.sites import KEY_TO_S3, KEY_TO_DATA_DIR, CONFIDENCE_THRESHOLDS, S3_BUCKET
+# Import DB function
 from lib.db import insert_detection
 
 # ---------------- Utility ----------------
@@ -80,21 +79,19 @@ def compute_lowfreq_ratio(wav_path: str):
     except Exception:
         return np.nan, np.nan, np.nan, np.nan
 
-_DEFAULT_CONFIDENCE_THRESHOLDS = {
-    "high":   {"ratio": 5.0, "delta_L": 6},
-    "medium": {"ratio": 0.5, "delta_L": -1},
-}
-
-def classify_confidence(ratio, entropy=None, delta_L=None, thresholds=None):
+def classify_confidence(ratio, entropy=None, delta_L=None, site_name=None):
+    if site_name == "Sunset_Bay":
+        if np.isnan(ratio): return "none"
+        if ratio > 2 or (delta_L is not None and delta_L > 4): return "high"
+        elif ratio > 0.2 or (delta_L is not None and delta_L > -2): return "medium"
+        elif ratio > 0.05 or (delta_L is not None and delta_L > -8): return "low"
+        else: return "none"
+    
     if np.isnan(ratio): return "none"
-    t = thresholds if thresholds is not None else _DEFAULT_CONFIDENCE_THRESHOLDS
-    for level in ("high", "medium", "low"):
-        tier = t.get(level)
-        if tier is None:
-            continue
-        if ratio > tier["ratio"] or (delta_L is not None and delta_L > tier["delta_L"]):
-            return level
-    return "none"
+    if ratio > 5 or (delta_L is not None and delta_L > 6): return "high"
+    elif ratio > 0.5 or (delta_L is not None and delta_L > -1): return "medium"
+    elif ratio >= 0.1 or (delta_L is not None and delta_L > -6): return "none"
+    else: return "none"
 
 # ---------------- Network Logic (Retry) ----------------
 
@@ -102,7 +99,7 @@ def download_ts_retry(s3_prefix: str, folder: str, seg_int: int, tmp_dir: str, v
     """
     Downloads segment with RETRY logic. Returns local path or None.
     """
-    base_url = f"https://{S3_BUCKET}.s3.amazonaws.com/{s3_prefix}/hls/{folder}"
+    base_url = f"https://audio-orcasound-net.s3.amazonaws.com/{s3_prefix}/hls/{folder}"
     local = os.path.join(tmp_dir, f"{folder}_live{seg_int}.ts")
     
     # Try plain and padded (live1.ts vs live001.ts)
@@ -157,6 +154,7 @@ def parse_segment_ranges(seg_raw: str):
 # ---------------- Processing ----------------
 
 def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
+    site_name = site.replace("_", " ").title().replace(" ", "_")
     print(f"📄 Processing {os.path.basename(csv_path)}")
     
     df = pd.read_csv(csv_path)
@@ -189,18 +187,13 @@ def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
 
             if not wav_files: continue
 
-            # 2. Find Loudest (filter NaN rms before comparing)
-            scored = [(f, s, w, rms_db(w)[0]) for f, s, w in wav_files]
-            valid = [(f, s, w, rms) for f, s, w, rms in scored if not np.isnan(rms)]
+            # 2. Find Loudest (filter NaN rms, compute once, reuse for confidence check)
+            scored = [(f, s, w, rms_db(w)) for f, s, w in wav_files]
+            valid = [(f, s, w, r) for f, s, w, r in scored if not np.isnan(r[0])]
             if not valid: continue
-            loud_folder, loud_seg_int, loud_wav, _ = max(valid, key=lambda t: t[3])
-
-            if loud_seg_int < 1:
-                vprint(verbose, "   ⚠️ Loudest segment is #0 (no previous segment). Skipping.")
-                continue
+            loud_folder, loud_seg_int, loud_wav, (_, mean_db, _) = max(valid, key=lambda t: t[3][0])
 
             # 3. Confidence Check
-            rms, mean_db, max_db = rms_db(loud_wav)
             # 🚫 HARD SILENCE GUARD (Hydrophone failure / mute day)
 
             if mean_db < -90:
@@ -211,7 +204,7 @@ def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
 
 
             ratio, entropy, delta_L, ship_index = compute_lowfreq_ratio(loud_wav)
-            conf = classify_confidence(ratio, entropy, delta_L, CONFIDENCE_THRESHOLDS.get(site))
+            conf = classify_confidence(ratio, entropy, delta_L, site_name)
 
             # Warning: Bush Point silent files (Jan 4) might fail this check and be skipped!
             # If you want to force test, comment out the next two lines.
@@ -220,15 +213,27 @@ def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
                  continue
 
             # 4. Strict 30s Manifest Construction
-            # We want [Prev, Center, Next]
+            # We want [Prev, Center, Next], but shift window if center is at session boundary
             final_manifest = []
-            
-            # Define the 3 targets: (folder, seg_int)
-            # Simplification: Assume same folder for neighbors unless logic requires jump (omitted for brevity, usually same folder)
+
+            # Find session range for the loud segment's folder
+            loud_range = next((r for r in ranges if r["folder"] == loud_folder), None)
+            session_start = loud_range["start"] if loud_range else loud_seg_int
+            session_end = loud_range["end"] if loud_range else loud_seg_int
+
+            if loud_seg_int <= session_start:
+                # At or before session start: shift window forward
+                base = session_start
+            elif loud_seg_int >= session_end:
+                # At or after session end: shift window backward
+                base = session_end - 2
+            else:
+                base = loud_seg_int - 1
+
             targets = [
-                (loud_folder, loud_seg_int - 1), # Prev
-                (loud_folder, loud_seg_int),     # Center
-                (loud_folder, loud_seg_int + 1)  # Next
+                (loud_folder, base),
+                (loud_folder, base + 1),
+                (loud_folder, base + 2),
             ]
 
             all_secured = True
@@ -268,15 +273,20 @@ def main():
     parser.add_argument("--date", nargs="*")
     parser.add_argument("--target_date", help="Ignored, compatibility only")
     parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--sites-dir", default=None)
     args = parser.parse_args()
 
-    base_dir = args.sites_dir or os.path.abspath(os.path.join(os.path.dirname(__file__), "../../Sites"))
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../Sites"))
+    sites = {
+        "bush_point": "rpi_bush_point",
+        "orcasound_lab": "rpi_orcasound_lab",
+        "port_townsend": "rpi_port_townsend",
+        "sunset_bay": "rpi_sunset_bay",
+    }
 
-    target_sites = KEY_TO_S3.keys() if args.site == "all" else [args.site]
-
+    target_sites = sites.keys() if args.site == "all" else [args.site]
+    
     for site in target_sites:
-        site_dir = os.path.join(base_dir, KEY_TO_DATA_DIR[site])
+        site_dir = os.path.join(base_dir, f"{site}_data")
         if not os.path.isdir(site_dir): continue
 
         dates = args.date if args.date else []
@@ -290,7 +300,7 @@ def main():
             
             for fname in sorted(os.listdir(csv_dir)):
                 if fname.endswith("_windowed_merged.csv"):
-                    process_csv(site, site_dir, KEY_TO_S3[site], os.path.join(csv_dir, fname), args.verbose)
+                    process_csv(site, site_dir, sites[site], os.path.join(csv_dir, fname), args.verbose)
 
 if __name__ == "__main__":
     main()
