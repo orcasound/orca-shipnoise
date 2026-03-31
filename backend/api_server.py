@@ -67,28 +67,6 @@ def parse_hls_info(s3_bucket, segment_details):
     return hls_url, start_offset_sec, end_offset_sec
 
 
-def generate_public_urls(s3_bucket, segment_details):
-    """
-    Generates a list of direct HTTPS URLs for Orcasound S3 bucket.
-    """
-    if not s3_bucket or not segment_details:
-        return []
-    
-    # Handle case where database returns a JSON string instead of list
-    if isinstance(segment_details, str):
-        try:
-            segment_details = json.loads(segment_details)
-        except:
-            return []
-
-    urls = []
-    if isinstance(segment_details, list):
-        for segment in segment_details:
-            # Construct the full public URL
-            url = f"{ORCASOUND_BASE_URL}/{s3_bucket}/hls/{segment}"
-            urls.append(url)
-    return urls
-
 
 # ============================================================
 #  ENDPOINT: Search Clips (Main Search)
@@ -150,11 +128,9 @@ def search_clips(
 
     results = []
     for row in rows:
-        public_urls = generate_public_urls(row["s3_bucket"], row["segment_details"])
         hls_url, start_offset_sec, end_offset_sec = parse_hls_info(row["s3_bucket"], row["segment_details"])
         results.append({
             **row,
-            "audio_urls": public_urls,
             "hls_url": hls_url,
             "start_offset_sec": start_offset_sec,
             "end_offset_sec": end_offset_sec,

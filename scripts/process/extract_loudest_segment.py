@@ -181,11 +181,11 @@ def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
 
             if not wav_files: continue
 
-            # 2. Find Loudest
-            loud_folder, loud_seg_int, loud_wav = max(wav_files, key=lambda t: rms_db(t[2])[0])
+            # 2. Find Loudest (compute RMS once per file, reuse for confidence check)
+            wav_rms = [(folder, seg_int, wav_path, rms_db(wav_path)) for folder, seg_int, wav_path in wav_files]
+            loud_folder, loud_seg_int, loud_wav, (_, mean_db, _) = max(wav_rms, key=lambda t: t[3][0])
 
             # 3. Confidence Check
-            rms, mean_db, max_db = rms_db(loud_wav)
             # 🚫 HARD SILENCE GUARD (Hydrophone failure / mute day)
 
             if mean_db < -90:
@@ -205,15 +205,27 @@ def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
                  continue
 
             # 4. Strict 30s Manifest Construction
-            # We want [Prev, Center, Next]
+            # We want [Prev, Center, Next], but shift window if center is at session boundary
             final_manifest = []
-            
-            # Define the 3 targets: (folder, seg_int)
-            # Simplification: Assume same folder for neighbors unless logic requires jump (omitted for brevity, usually same folder)
+
+            # Find session range for the loud segment's folder
+            loud_range = next((r for r in ranges if r["folder"] == loud_folder), None)
+            session_start = loud_range["start"] if loud_range else loud_seg_int
+            session_end = loud_range["end"] if loud_range else loud_seg_int
+
+            if loud_seg_int <= session_start:
+                # At or before session start: shift window forward
+                base = session_start
+            elif loud_seg_int >= session_end:
+                # At or after session end: shift window backward
+                base = session_end - 2
+            else:
+                base = loud_seg_int - 1
+
             targets = [
-                (loud_folder, loud_seg_int - 1), # Prev
-                (loud_folder, loud_seg_int),     # Center
-                (loud_folder, loud_seg_int + 1)  # Next
+                (loud_folder, base),
+                (loud_folder, base + 1),
+                (loud_folder, base + 2),
             ]
 
             all_secured = True
