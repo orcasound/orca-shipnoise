@@ -19,7 +19,6 @@ export type ClipApiResult = {
   date_utc?: string;
   mmsi?: string | null;
   shipname?: string | null;
-  audio_urls?: string[] | null;
   cpa_distance_m?: number | null;
   t_cpa?: string | null;
   center_segment_index?: number;
