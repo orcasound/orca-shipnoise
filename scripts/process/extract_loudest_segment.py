@@ -176,14 +176,22 @@ def process_csv(site, site_dir, s3_prefix, csv_path, verbose):
                     if not ts_path: continue
                     
                     wav_path = ts_path.replace(".ts", ".wav")
-                    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", ts_path, "-ac", "1", "-ar", "48000", wav_path], check=False)
+                    result = subprocess.run(
+                        ["ffmpeg", "-loglevel", "error", "-y", "-i", ts_path, "-ac", "1", "-ar", "48000", wav_path],
+                        check=False,
+                    )
+                    if result.returncode != 0:
+                        vprint(verbose, f"      ⚠️ ffmpeg failed for {os.path.basename(ts_path)}")
+                        continue
                     wav_files.append((folder, seg_int, wav_path))
 
             if not wav_files: continue
 
-            # 2. Find Loudest (compute RMS once per file, reuse for confidence check)
-            wav_rms = [(folder, seg_int, wav_path, rms_db(wav_path)) for folder, seg_int, wav_path in wav_files]
-            loud_folder, loud_seg_int, loud_wav, (_, mean_db, _) = max(wav_rms, key=lambda t: t[3][0])
+            # 2. Find Loudest (filter NaN rms, compute once, reuse for confidence check)
+            scored = [(f, s, w, rms_db(w)) for f, s, w in wav_files]
+            valid = [(f, s, w, r) for f, s, w, r in scored if not np.isnan(r[0])]
+            if not valid: continue
+            loud_folder, loud_seg_int, loud_wav, (_, mean_db, _) = max(valid, key=lambda t: t[3][0])
 
             # 3. Confidence Check
             # 🚫 HARD SILENCE GUARD (Hydrophone failure / mute day)

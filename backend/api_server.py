@@ -3,31 +3,34 @@ load_dotenv()
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text, create_engine
 from typing import List
 import os
 import json
 import re
+import sqlite3
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- Database Connection ---
-DB_URL = os.getenv("DATABASE_URL")
-engine = create_engine(DB_URL, pool_pre_ping=True)
+DB_PATH = os.getenv("DATABASE_PATH", "/app/data/shipnoise.db")
+
+def get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 # --- Constants ---
 ORCASOUND_BASE_URL = "https://audio-orcasound-net.s3.amazonaws.com"
 SEG_DUR = 10  # seconds per .ts segment
 
-# FIX: Updated to lowercase to match the PostgreSQL database values
 DEFAULT_SITES = ["bush_point", "orcasound_lab", "port_townsend", "sunset_bay"]
 
 # --- Helper Function ---
@@ -67,7 +70,6 @@ def parse_hls_info(s3_bucket, segment_details):
     return hls_url, start_offset_sec, end_offset_sec
 
 
-
 # ============================================================
 #  ENDPOINT: Search Clips (Main Search)
 # ============================================================
@@ -82,12 +84,14 @@ def search_clips(
     if sites is None:
         sites = DEFAULT_SITES
     else:
-        # FIX: Ensure all requested sites are lowercase
         sites = [s.lower() for s in sites]
 
-    sql = """
+    site_params = {f"site_{i}": s for i, s in enumerate(sites)}
+    site_placeholders = ",".join(f":site_{i}" for i in range(len(sites)))
+
+    sql = f"""
         SELECT * FROM (
-            SELECT 
+            SELECT
                 id,
                 site,
                 date,
@@ -102,35 +106,35 @@ def search_clips(
                     ORDER BY t_cpa DESC
                 ) AS rk
             FROM records
-            WHERE site = ANY(:sites)
+            WHERE site IN ({site_placeholders})
               AND date BETWEEN :start AND :end
-              AND (:ship IS NULL OR shipname ILIKE :ship)
+              AND (:ship IS NULL OR LOWER(shipname) LIKE LOWER(:ship))
         ) ranked
         WHERE rk <= :limit_per_site
         ORDER BY site, t_cpa DESC;
     """
 
-    # Format parameters for DB
     p_start = start_date.replace("-", "")
     p_end = end_date.replace("-", "")
     p_ship = f"%{shipname}%" if shipname else None
 
     params = {
-        "sites": sites,
+        **site_params,
         "start": p_start,
         "end": p_end,
         "ship": p_ship,
         "limit_per_site": limit_per_site,
     }
 
-    with engine.begin() as conn:
-        rows = conn.execute(text(sql), params).mappings().all()
+    with get_conn() as conn:
+        rows = conn.execute(sql, params).fetchall()
 
     results = []
     for row in rows:
-        hls_url, start_offset_sec, end_offset_sec = parse_hls_info(row["s3_bucket"], row["segment_details"])
+        row_dict = dict(row)
+        hls_url, start_offset_sec, end_offset_sec = parse_hls_info(row_dict["s3_bucket"], row_dict["segment_details"])
         results.append({
-            **row,
+            **row_dict,
             "hls_url": hls_url,
             "start_offset_sec": start_offset_sec,
             "end_offset_sec": end_offset_sec,
@@ -158,14 +162,14 @@ def vessel_suggestions(
     sql = """
         SELECT DISTINCT shipname
         FROM records
-        WHERE shipname ILIKE :q
+        WHERE LOWER(shipname) LIKE LOWER(:q)
         ORDER BY shipname ASC
         LIMIT :limit;
     """
     params = {"q": f"%{q}%", "limit": limit}
-    
-    with engine.begin() as conn:
-        rows = conn.execute(text(sql), params).fetchall()
-        
+
+    with get_conn() as conn:
+        rows = conn.execute(sql, params).fetchall()
+
     results = [r[0] for r in rows]
     return {"results": results}
