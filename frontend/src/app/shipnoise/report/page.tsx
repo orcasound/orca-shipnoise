@@ -1,7 +1,5 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Box,
@@ -16,8 +14,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-
-import logo from "@/assets/Logo.png";
+import Banner from "@/components/Banner";
 
 interface Issue {
   [key: string]: string | number | boolean | null;
@@ -92,96 +89,8 @@ export default function ReportPage() {
     );
 
   return (
-    <Box
-      component="main"
-      sx={{
-        minHeight: "100vh",
-        bgcolor: "#f1f5f9",
-        pt: { xs: "120px", sm: "90px", lg: "80px" },
-      }}
-    >
-      {/* Top Bar */}
-      <Box
-        component="header"
-        sx={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          width: "100%",
-          bgcolor: "black",
-          color: "white",
-          boxShadow: "0 4px 6px rgba(0,0,0,0.15)",
-        }}
-      >
-        <Box sx={{ width: "100%", px: { xs: 2, sm: 3, lg: "35px" }, py: { xs: 2, sm: 2 } }}>
-          <Box
-            sx={{
-              mx: "auto",
-              width: "100%",
-              maxWidth: "90rem",
-              display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
-              gap: 2,
-              alignItems: { sm: "center" },
-              justifyContent: { sm: "space-between" },
-            }}
-          >
-            <Box
-              component={Link}
-              href="/shipnoise"
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-                color: "white",
-                textDecoration: "none",
-                transition: "color 0.2s ease",
-                "&:hover": { color: "#f1f5f9" },
-              }}
-            >
-              <Image
-                src={logo}
-                alt="Shipnoise Logo"
-                width={38}
-                height={40}
-                style={{ objectFit: "contain" }}
-                priority
-              />
-              <Typography
-                component="span"
-                sx={{
-                  fontSize: { xs: "22px", sm: "24px" },
-                  fontWeight: 700,
-                  fontFamily: "Mukta, sans-serif",
-                }}
-              >
-                Shipnoise
-              </Typography>
-            </Box>
-
-            <Stack
-              spacing={0.5}
-              alignItems={{ xs: "flex-start", sm: "flex-end" }}
-              textAlign={{ xs: "left", sm: "right" }}
-            >
-              <Typography
-                component="h1"
-                sx={{
-                  fontSize: { xs: "18px", sm: "20px" },
-                  fontWeight: 600,
-                  letterSpacing: "0.02em",
-                  fontFamily: "Montserrat, sans-serif",
-                }}
-              >
-                Issue Report Dashboard
-              </Typography>
-              <Typography sx={{ fontSize: { xs: "14px", sm: "16px" }, opacity: 0.8 }}>
-                Total: {issues.length} submissions
-              </Typography>
-            </Stack>
-          </Box>
-        </Box>
-      </Box>
+    <Box sx={{ minHeight: "100vh", bgcolor: "#f1f5f9" }}>
+      <Banner />
 
       {/* Content */}
       <Container maxWidth="lg" sx={{ py: 5 }}>
