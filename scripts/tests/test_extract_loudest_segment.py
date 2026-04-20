@@ -57,14 +57,10 @@ class TestClassifyConfidence:
         assert classify_confidence(ratio=0.1, delta_L=7.0) == "high"
 
     def test_sunset_bay_lower_thresholds(self):
-        # Sunset Bay has lower thresholds
-        from config.sites import CONFIDENCE_THRESHOLDS
-        t = CONFIDENCE_THRESHOLDS["sunset_bay"]
-        assert classify_confidence(ratio=2.5, thresholds=t) == "high"
-        assert classify_confidence(ratio=0.3, thresholds=t) == "medium"
+        # Sunset Bay has lower thresholds, passed via site_name
+        assert classify_confidence(ratio=2.5, site_name="Sunset_Bay") == "high"
+        assert classify_confidence(ratio=0.3, site_name="Sunset_Bay") == "medium"
 
     def test_sunset_bay_nan_returns_none(self):
         import numpy as np
-        from config.sites import CONFIDENCE_THRESHOLDS
-        t = CONFIDENCE_THRESHOLDS["sunset_bay"]
-        assert classify_confidence(ratio=np.nan, thresholds=t) == "none"
+        assert classify_confidence(ratio=np.nan, site_name="Sunset_Bay") == "none"
