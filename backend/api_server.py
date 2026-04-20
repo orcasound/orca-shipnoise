@@ -3,13 +3,50 @@ load_dotenv()
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+from pydantic import BaseModel
+from typing import List, Optional
 import os
 import json
 import re
 import sqlite3
 
+
+class ClipResult(BaseModel):
+    id: int
+    site: str
+    date: str
+    mmsi: Optional[str]
+    shipname: Optional[str]
+    t_cpa: Optional[str]
+    confidence: Optional[float]
+    s3_bucket: Optional[str]
+    segment_details: Optional[str]
+    hls_url: Optional[str]
+    start_offset_sec: Optional[int]
+    end_offset_sec: Optional[int]
+    center_segment_index: int
+
+
+class ClipsSearchResponse(BaseModel):
+    count: int
+    start_date: str
+    end_date: str
+    shipname_query: Optional[str]
+    sites: List[str]
+    limit_per_site: int
+    results: List[ClipResult]
+
+
+class VesselsSearchResponse(BaseModel):
+    results: List[str]
+
 app = FastAPI()
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -73,7 +110,7 @@ def parse_hls_info(s3_bucket, segment_details):
 # ============================================================
 #  ENDPOINT: Search Clips (Main Search)
 # ============================================================
-@app.get("/clips/search")
+@app.get("/clips/search", response_model=ClipsSearchResponse)
 def search_clips(
     shipname: str = Query(None),
     start_date: str = Query(...),
@@ -154,7 +191,7 @@ def search_clips(
 # ============================================================
 #  ENDPOINT: Vessel Autocomplete
 # ============================================================
-@app.get("/vessels/search")
+@app.get("/vessels/search", response_model=VesselsSearchResponse)
 def vessel_suggestions(
     q: str = Query(..., min_length=1),
     limit: int = Query(20, ge=1, le=50)
