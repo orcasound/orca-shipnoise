@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Box, IconButton, Slider, Typography } from '@mui/material';
 import VideoJS from '@/components/VideoJS';
@@ -66,13 +66,7 @@ const DetectionsPlayer: React.FC<DetectionsPlayerProps> = ({
     [hlsUrl],
   );
 
-  // Reset when the clip changes
-  useEffect(() => {
-    setPlayerTime(startOffsetSec);
-    setIsPlaying(false);
-  }, [hlsUrl, startOffsetSec]);
-
-  const handlePlayerReady = useCallback(
+const handlePlayerReady = useCallback(
     (player: Player) => {
       playerRef.current = player;
 
