@@ -300,6 +300,7 @@ const AvailableRecordings: React.FC<AvailableRecordingsProps> = ({ recordings = 
                           }}
                         >
                           <DetectionsPlayer
+                            key={rec.hlsUrl}
                             hlsUrl={rec.hlsUrl!}
                             startOffsetSec={rec.startOffsetSec!}
                             endOffsetSec={rec.endOffsetSec!}
