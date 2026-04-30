@@ -18,10 +18,11 @@ interface DetectionsPlayerProps {
 const PLAY_BUTTON_SIZE = 48;
 
 /** Format seconds to zero-padded mm:ss (e.g. "00:00", "04:18") */
-const formattedSeconds = (seconds: number) => {
-  const mm = Math.floor(seconds / 60);
-  const ss = seconds % 60;
-  return `${mm.toString().padStart(2, '0')}:${ss.toFixed(0).padStart(2, '0')}`;
+const formattedSeconds = (seconds: number): string => {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 };
 
 /**
@@ -70,18 +71,14 @@ const handlePlayerReady = useCallback(
     (player: Player) => {
       playerRef.current = player;
 
-      player.on('playing', () => {
-        setIsPlaying(true);
-        const t = player.currentTime() ?? 0;
-        if (t < startOffsetSec || t > endOffsetSec) {
-          player.currentTime(startOffsetSec);
-          setPlayerTime(startOffsetSec);
-        }
+      // Seek to clip start once metadata is loaded and seeking is possible
+      player.one('loadedmetadata', () => {
+        player.currentTime(startOffsetSec);
+        setPlayerTime(startOffsetSec);
       });
 
+      player.on('playing', () => setIsPlaying(true));
       player.on('pause', () => setIsPlaying(false));
-
-      player.currentTime(startOffsetSec);
 
       player.on('timeupdate', () => {
         const t = player.currentTime() ?? 0;
