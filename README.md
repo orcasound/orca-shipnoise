@@ -5,17 +5,19 @@ A web application for visualizing and listening to underwater ship noise recorde
 ## Architecture
 
 ```
-Orcasound GraphQL API  →  AIS data collection scripts  →  SQLite (fly.io)
+AISStream API (AIS ship data) ─┐
+                               ├→  AIS data collection scripts  →  SQLite (fly.io)
+AWS S3 (Orcasound HLS audio) ──┘
                                                                   ↓
                                                    FastAPI backend (fly.io)
                                                                   ↓
-                                                    Next.js frontend (frontend/)
+                                                    Next.js frontend (Vercel)
 ```
 
-- **Frontend** — Next.js (App Router) + MUI, located in `frontend/`
-- **Backend** — FastAPI serving REST API, located in `backend/`
+- **Frontend** — Next.js (App Router) + MUI, located in `frontend/`, deployed on Vercel
+- **Backend** — FastAPI serving REST API, located in `backend/`, deployed on fly.io
 - **Database** — SQLite, replicated via Litestream to Tigris (S3-compatible)
-- **Deployment** — fly.io (`fly.toml`)
+- **Deployment** — Frontend on Vercel, backend on fly.io (`fly.toml`)
 - **Data collection** — Python scripts in `scripts/` that pull AIS ship data and match it against Orcasound hydrophone recordings
 
 ## Running locally
