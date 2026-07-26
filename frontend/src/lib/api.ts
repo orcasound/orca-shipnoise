@@ -101,6 +101,35 @@ export interface ClipsSearchParams {
   limitPerSite?: number;
 }
 
+export type AisVessel = {
+  mmsi: number | null;
+  name: string | null;
+  lat: number | null;
+  lon: number | null;
+  sog: number | null;
+  cog: number | null;
+  type: number | null;
+  navstat: number | null;
+  time: string | null;
+};
+
+export type AisSiteResponse = {
+  site: string;
+  vessels: AisVessel[];
+  updated_at: string | null;
+  error: string | null;
+};
+
+export async function fetchAisSite(slug: string, signal?: AbortSignal): Promise<AisSiteResponse> {
+  const url = buildBackendUrl(`/ais/sites/${slug}`, new URLSearchParams());
+  if (!url) throw new Error('NEXT_PUBLIC_CLIPS_API_BASE_URL is not configured');
+
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error(`AIS site request failed with ${response.status}`);
+
+  return response.json();
+}
+
 export async function fetchClipsSearch(
   params: ClipsSearchParams,
   signal?: AbortSignal,
