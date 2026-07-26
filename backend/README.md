@@ -26,11 +26,17 @@ Create a `.env` file inside `shipnoise-backend/`:
 ```
 
 DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@HOST:PORT/shipnoise
+AISHUB_USERNAME=your-aishub-username
 
 ````
 
 > ⚠️ `DATABASE_URL` is required.  
 > The backend is currently configured to work with **Neon-hosted PostgreSQL**.
+
+> ℹ️ `AISHUB_USERNAME` is required for the `/ais/sites` endpoints. Without it,
+> the AIS polling loop logs a warning and stays idle (cached data stays empty).
+> AISHub allows at most one request per minute per account, and that limit is
+> enforced globally across all sites by `ais_service.py`, not per site.
 
 Do **NOT** commit `.env` to GitHub (already ignored).
 
@@ -130,6 +136,31 @@ GET /vessels/search?q=orca&limit=20
 ```
 
 Returns a list of matching vessel names.
+
+---
+
+### `GET /ais/sites`
+
+Lists the hydrophone sites tracked for nearby ship traffic (slug, name, lat/lon, search radius).
+
+### `GET /ais/sites/{slug}`
+
+Returns cached AIS vessel positions near one site, e.g. `GET /ais/sites/bush-point`.
+
+```json
+{
+  "site": "bush-point",
+  "updated_at": "2026-07-25T04:12:00+00:00",
+  "vessels": [{ "mmsi": 366123456, "name": "EXAMPLE", "lat": 48.03, "lon": -122.60, "sog": 9.4, "cog": 187 }],
+  "error": null
+}
+```
+
+Data comes from a background poller (`ais_service.py`) that round-robins through
+all sites at most once per minute (AISHub's global rate limit). Requesting a
+site whose cache is missing or more than 90s old bumps it to the front of the
+poller's queue instead of forcing an immediate call, so the 1-req/min limit is
+never exceeded no matter how many clients ask.
 
 ---
 
