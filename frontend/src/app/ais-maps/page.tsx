@@ -1,26 +1,15 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { Box, Container, Grid, Paper, Typography } from '@mui/material';
 import Banner from '@/components/Banner';
 import { useAisSite } from '@/hooks/useShipnoiseApi';
-import type { SiteMapSite } from '@/components/SiteMap';
+import { SITES, type Site } from '@/lib/sites';
 
 const SiteMap = dynamic(() => import('@/components/SiteMap'), {
   ssr: false,
 });
-
-// Source: https://live.orcasound.net/api/json/feeds (visible: true)
-// Ordered north to south so the grid reads geographically, top to bottom.
-const SITES: SiteMapSite[] = [
-  { slug: 'orcasound-lab', name: 'Orcasound Lab', lat: 48.5583, lon: -123.1736 },
-  { slug: 'andrews-bay', name: 'Andrews Bay', lat: 48.5467, lon: -123.1664 },
-  { slug: 'north-sjc', name: 'North San Juan Channel', lat: 48.5913, lon: -123.0588 },
-  { slug: 'port-townsend', name: 'Port Townsend', lat: 48.1357, lon: -122.7606 },
-  { slug: 'bush-point', name: 'Bush Point', lat: 48.0337, lon: -122.604 },
-  { slug: 'sunset-bay', name: 'Sunset Bay', lat: 47.865, lon: -122.3339 },
-  { slug: 'mast-center', name: 'MaST Center Aquarium', lat: 47.3492, lon: -122.3251 },
-];
 
 function formatUpdatedLabel(updatedAt: string | null): string {
   if (!updatedAt) return 'Waiting for first update…';
@@ -30,40 +19,51 @@ function formatUpdatedLabel(updatedAt: string | null): string {
   return `Updated ${ageMin} min ago`;
 }
 
-function SiteTile({ site }: { site: SiteMapSite }) {
+function SiteTile({ site }: { site: Site }) {
   const { data, isLoading } = useAisSite(site.slug);
   const vessels = data?.vessels ?? [];
 
   return (
-    <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: 2 }}>
-      <Box sx={{ aspectRatio: '4 / 3', bgcolor: '#e8edf1' }}>
-        {isLoading ? (
-          <Box
-            sx={{
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Typography variant="body2" sx={{ color: '#6b7c85' }}>
-              Loading map…
-            </Typography>
-          </Box>
-        ) : (
-          <SiteMap site={site} vessels={vessels} />
-        )}
-      </Box>
-      <Box sx={{ p: 1.5 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-          {site.name}
-        </Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          {vessels.length} vessel{vessels.length === 1 ? '' : 's'} nearby &middot;{' '}
-          {formatUpdatedLabel(data?.updated_at ?? null)}
-        </Typography>
-      </Box>
-    </Paper>
+    <Link href={`/ais-maps/${site.slug}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+      <Paper
+        variant="outlined"
+        sx={{
+          overflow: 'hidden',
+          borderRadius: 2,
+          cursor: 'pointer',
+          transition: 'box-shadow 0.15s ease',
+          '&:hover': { boxShadow: 3 },
+        }}
+      >
+        <Box sx={{ aspectRatio: '4 / 3', bgcolor: '#e8edf1' }}>
+          {isLoading ? (
+            <Box
+              sx={{
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Typography variant="body2" sx={{ color: '#6b7c85' }}>
+                Loading map…
+              </Typography>
+            </Box>
+          ) : (
+            <SiteMap site={site} vessels={vessels} interactive={false} />
+          )}
+        </Box>
+        <Box sx={{ p: 1.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            {site.name}
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            {vessels.length} vessel{vessels.length === 1 ? '' : 's'} nearby &middot;{' '}
+            {formatUpdatedLabel(data?.updated_at ?? null)}
+          </Typography>
+        </Box>
+      </Paper>
+    </Link>
   );
 }
 

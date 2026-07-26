@@ -3,17 +3,10 @@
 import 'leaflet/dist/leaflet.css';
 import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet';
 import type { AisVessel } from '@/lib/api';
-
-export type SiteMapSite = {
-  slug: string;
-  name: string;
-  lat: number;
-  lon: number;
-  radiusNm?: number;
-};
+import type { Site } from '@/lib/sites';
 
 interface SiteMapProps {
-  site: SiteMapSite;
+  site: Pick<Site, 'slug' | 'name' | 'lat' | 'lon'>;
   vessels: AisVessel[];
   interactive?: boolean;
 }
