@@ -189,7 +189,8 @@ class AisPoller:
             raw_boats = await asyncio.to_thread(
                 _fetch_boats_in_area, self.username, latmin, latmax, lonmin, lonmax
             )
-            vessels = [_to_vessel(b) for b in raw_boats]
+            moving_boats = [b for b in raw_boats if (b.get("SOG") or 0) > 0]
+            vessels = [_to_vessel(b) for b in moving_boats]
             self.cache[slug] = SiteCacheEntry(
                 vessels=vessels,
                 updated_at=datetime.now(timezone.utc).isoformat(),
