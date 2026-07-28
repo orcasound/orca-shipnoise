@@ -3,3 +3,4 @@ uvicorn
 python-dotenv
 boto3
 pandas
+requests

@@ -1,7 +1,8 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, Query
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
@@ -9,6 +10,8 @@ import os
 import json
 import re
 import sqlite3
+
+from ais_service import SITES, ais_poller
 
 
 class ClipResult(BaseModel):
@@ -40,7 +43,14 @@ class ClipsSearchResponse(BaseModel):
 class VesselsSearchResponse(BaseModel):
     results: List[str]
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ais_poller.start()
+    yield
+    await ais_poller.stop()
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/health")
@@ -210,3 +220,27 @@ def vessel_suggestions(
 
     results = [r[0] for r in rows]
     return {"results": results}
+
+
+# ============================================================
+#  ENDPOINTS: AIS Vessel Traffic Near Hydrophone Sites
+# ============================================================
+@app.get("/ais/sites")
+def list_ais_sites():
+    return [
+        {"slug": s.slug, "name": s.name, "lat": s.lat, "lon": s.lon, "radius_nm": s.radius_nm}
+        for s in SITES
+    ]
+
+
+@app.get("/ais/sites/{slug}")
+def get_ais_site(slug: str):
+    entry = ais_poller.get(slug)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"Unknown site: {slug}")
+
+    # Cached data is served immediately; if it's missing or stale this also
+    # bumps the site to the front of the poller's queue for its next tick.
+    ais_poller.request_refresh(slug)
+
+    return {"site": slug, **entry.as_dict()}
