@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Box, Container, Grid, Paper, Typography } from '@mui/material';
 import Banner from '@/components/Banner';
+import LiveClock from '@/components/LiveClock';
 import { useAisSite } from '@/hooks/useShipnoiseApi';
 import { SITES, type Site } from '@/lib/sites';
 
@@ -79,9 +80,12 @@ export default function AisMapsPage() {
           py: { xs: 2, lg: 3 },
         }}
       >
-        <Typography variant="h5" sx={{ fontWeight: 600, mb: 2 }}>
-          Nearby Ship Traffic
-        </Typography>
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 600 }}>
+            Nearby Ship Traffic
+          </Typography>
+          <LiveClock sx={{ color: 'text.secondary', mt: 0.5 }} />
+        </Box>
         <Grid container spacing={2}>
           {SITES.map((site) => (
             <Grid key={site.slug} size={{ xs: 12, sm: 6, md: 4 }}>
