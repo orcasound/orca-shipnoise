@@ -2,7 +2,7 @@ import os
 import json
 import sqlite3
 
-DB_PATH = os.environ.get("DB_PATH", "/app/data/shipnoise.db")
+DB_PATH = os.environ.get("DATABASE_PATH", "/app/data/shipnoise.db")
 
 
 def get_conn():
